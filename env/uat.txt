@@ -1,0 +1,5 @@
+# UAT environment variables
+ENV_NAME=uat
+SOLUTION_LIST=["CoreSolution","DataverseSchemaSolution","FrontendAppSolution","AutomationSolution"]
+DEPENDENCY_ORDER=CoreSolution,DataverseSchemaSolution,FrontendAppSolution,AutomationSolution
+POWER_PLATFORM_URL=${{ secrets.POWER_PLATFORM_UAT_URL }}
