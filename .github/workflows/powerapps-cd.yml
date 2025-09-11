@@ -1,0 +1,26 @@
+name: Power Apps CD
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target environment (uat/prod)"
+        required: true
+        type: choice
+        options:
+          - uat
+          - prod
+
+jobs:
+  cd:
+    uses: ./.github/workflows/templates/powerapps-reusable.yml
+    with:
+      environment: ${{ github.event.inputs.environment }}
+      mode: cd
+      solutions: '["CoreSolution","DataverseSchemaSolution","FrontendAppSolution","AutomationSolution"]'
+      dependency_order: "CoreSolution,DataverseSchemaSolution,FrontendAppSolution,AutomationSolution"
+    secrets:
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+      POWER_PLATFORM_URL: ${{ secrets['POWER_PLATFORM_' + github.event.inputs.environment | upper + '_URL'] }}
