@@ -1,0 +1,17 @@
+name: Power Apps CI
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  ci:
+    uses: ./.github/workflows/templates/powerapps-reusable.yml
+    with:
+      environment: dev
+      mode: ci
+      solutions: '["CoreSolution","DataverseSchemaSolution","FrontendAppSolution","AutomationSolution"]'
+    secrets:
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+      POWER_PLATFORM_URL: ${{ secrets.POWER_PLATFORM_DEV_URL }}
