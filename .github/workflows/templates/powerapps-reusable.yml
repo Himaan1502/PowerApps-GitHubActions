@@ -1,0 +1,85 @@
+name: Power Apps Reusable Pipeline (Enterprise)
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        required: true
+        type: string
+      mode: # ci = export/unpack/commit, cd = import/deploy
+        required: true
+        type: string
+      solutions:
+        required: true
+        type: string
+      dependency_order: # comma-separated list for deployment order
+        required: false
+        type: string
+    secrets:
+      AZURE_CLIENT_ID:
+        required: true
+      AZURE_TENANT_ID:
+        required: true
+      AZURE_CLIENT_SECRET:
+        required: true
+      POWER_PLATFORM_URL:
+        required: true
+
+jobs:
+  powerapps:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        solution: ${{ fromJSON(inputs.solutions) }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Power Platform CLI
+        run: npm install -g pac-cli
+
+      - name: Power Platform Auth
+        run: |
+          pac auth create \
+            --url ${{ secrets.POWER_PLATFORM_URL }} \
+            --tenant ${{ secrets.AZURE_TENANT_ID }} \
+            --applicationId ${{ secrets.AZURE_CLIENT_ID }} \
+            --clientSecret ${{ secrets.AZURE_CLIENT_SECRET }}
+
+      # ---------- CI MODE ----------
+      - name: Export Solution
+        if: ${{ inputs.mode == 'ci' }}
+        run: |
+          pac solution export \
+            --name ${{ matrix.solution }} \
+            --outputDirectory solutions/${{ matrix.solution }} \
+            --includeVersion
+
+      - name: Unpack Solution
+        if: ${{ inputs.mode == 'ci' }}
+        run: |
+          pac solution unpack \
+            --solutionZip solutions/${{ matrix.solution }}.zip \
+            --folder solutions/${{ matrix.solution }} \
+            --allowDelete true
+
+      - name: Commit Solution Changes
+        if: ${{ inputs.mode == 'ci' }}
+        run: |
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          git add solutions/${{ matrix.solution }}
+          git commit -m "Updated solution ${{ matrix.solution }}" || echo "No changes"
+          git push
+
+      # ---------- CD MODE ----------
+      - name: Import Solutions in Dependency Order
+        if: ${{ inputs.mode == 'cd' && matrix.solution == fromJSON(inputs.dependency_order)[0] }}
+        run: |
+          echo "Deploying solutions in order: ${{ inputs.dependency_order }}"
+          for sol in $(echo "${{ inputs.dependency_order }}" | tr ',' '\n'); do
+            echo "Importing $sol ..."
+            pac solution import \
+              --path solutions/$sol.zip \
+              --activatePlugins true
+          done
