@@ -1,9 +1,12 @@
-name: Power Platform Reusable Workflow
+name: PowerApps Reusable Workflow
 
 on:
   workflow_call:
     inputs:
       pp_url:
+        required: true
+        type: string
+      solutions:
         required: true
         type: string
       azure_client_id:
@@ -15,20 +18,22 @@ on:
       azure_tenant_id:
         required: true
         type: string
-      solutions:
-        required: true
-        type: string  # JSON array, e.g. '["CoreSolution","FrontendSolution"]'
 
 jobs:
-  build:
+  export-solutions:
     runs-on: self-hosted
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repo
+        uses: actions/checkout@v4
 
+      # Ensure jq is installed
       - name: Install jq
-        run: sudo apt-get update && sudo apt-get install -y jq
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq
 
-      - name: Ensure .NET SDK 8 installed
+      # Ensure .NET SDK 8 is installed
+      - name: Install .NET 8 SDK if missing
         run: |
           if ! dotnet --list-sdks 2>/dev/null | grep -q '^8\.'; then
             echo "Installing .NET 8 SDK..."
@@ -41,40 +46,52 @@ jobs:
             echo ".NET 8 SDK already installed."
           fi
 
-      - name: Ensure PAC CLI installed
+      # Install Microsoft Power Platform CLI
+      - name: Install Microsoft Power Platform CLI (PAC CLI)
         run: |
           PAC_PATH="$HOME/.pac"
-          if command -v pac >/dev/null 2>&1; then
-            echo "PAC CLI already installed at $(command -v pac)"
-          else
+          mkdir -p "$PAC_PATH"
+          if [ ! -f "$PAC_PATH/pac" ]; then
             echo "Installing PAC CLI..."
-            mkdir -p "$PAC_PATH"
             dotnet tool install Microsoft.PowerApps.CLI.Tool --version 1.43.6 --tool-path "$PAC_PATH"
-            echo "$PAC_PATH" >> $GITHUB_PATH
+          else
+            echo "PAC CLI already installed at $PAC_PATH"
           fi
+          echo "$PAC_PATH" >> $GITHUB_PATH
+          export PATH="$PAC_PATH:$PATH"
+          which pac
+          pac --version
 
-      - name: Authenticate PAC CLI
+      # Authenticate to Power Platform
+      - name: Power Platform Auth
         run: |
-          pac auth create \
-            --url "${{ inputs.pp_url }}" \
+          export PATH="$HOME/.pac:$PATH"
+          pac auth create --url "${{ inputs.pp_url }}" \
             --tenant "${{ inputs.azure_tenant_id }}" \
             --applicationId "${{ inputs.azure_client_id }}" \
             --clientSecret "${{ inputs.azure_client_secret }}"
 
-      - name: Export & Unpack Solutions
+      # Export and unpack solutions
+      - name: Export and Unpack Solutions
         run: |
+          export PATH="$HOME/.pac:$PATH"
           mkdir -p solutions
-          SOLS=${{ inputs.solutions }}
+          SOLS='${{ inputs.solutions }}'   # must be valid JSON array: ["Sol1","Sol2"]
           for sol in $(echo $SOLS | jq -r '.[]'); do
             echo "Processing solution: $sol"
             pac solution export --name "$sol" --path "solutions/$sol.zip" --overwrite
             pac solution unpack --zip-file "solutions/$sol.zip" --folder "solutions/$sol" --allow-delete
           done
 
-      - name: Commit & Push Changes
+      # Commit only if there are changes
+      - name: Commit changes
         run: |
           git config user.name "github-actions"
           git config user.email "actions@github.com"
           git add solutions/*
-          git diff --cached --quiet || git commit -m "Updated Power Platform solutions"
-          git push
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+          else
+            git commit -m "Updated Power Platform solutions"
+            git push
+          fi
