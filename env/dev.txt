@@ -1,5 +1,5 @@
 # Dev environment variables
 ENV_NAME=dev
-SOLUTION_LIST=["CoreSolution","DataverseSchemaSolution","FrontendAppSolution","AutomationSolution"]
-DEPENDENCY_ORDER=CoreSolution,DataverseSchemaSolution,FrontendAppSolution,AutomationSolution
+SOLUTION_LIST='["CoreSolution","DataverseSchemaSolution","FrontendAppSolution","AutomationSolution"]'
+DEPENDENCY_ORDER='["CoreSolution","DataverseSchemaSolution","FrontendAppSolution","AutomationSolution"]'
 POWER_PLATFORM_URL=org4405003e.crm8.dynamics.com
