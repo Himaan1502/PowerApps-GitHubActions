@@ -1,75 +1,98 @@
-name: PowerApps Reusable Workflow
-
+name: Power Apps Reusable Workflow
 on:
   workflow_call:
     inputs:
       pac_path:
-        required: false
+        description: 'Path to install PAC CLI'
+        required: true
         type: string
       solutions:
+        description: 'JSON array of solution names'
         required: true
         type: string
       env_file:
-        required: true
+        description: 'Optional: path to environment file for CI'
+        required: false
+        type: string
+      pp_url:
+        description: 'Power Platform URL (required for CD)'
+        required: false
+        type: string
+      azure_client_id:
+        description: 'Azure Service Principal Client ID'
+        required: false
+        type: string
+      azure_client_secret:
+        description: 'Azure Service Principal Client Secret'
+        required: false
+        type: string
+      azure_tenant_id:
+        description: 'Azure Tenant ID'
+        required: false
         type: string
 
 jobs:
-  powerapps-workflow:
+  powerapps:
     runs-on: self-hosted
-
     steps:
-      - name: Checkout Repo
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Install jq
-        run: sudo apt-get update && sudo apt-get install -y jq
+      - name: Install dependencies
+        run: sudo apt-get update && sudo apt-get install -y jq curl unzip
 
-      - name: Load environment variables
+      - name: Ensure .NET 8 SDK is installed
         run: |
-          set -a
-          source ${{ inputs.env_file }}
-          set +a
-
-      - name: Ensure .NET 8 SDK
-        run: |
-          if ! dotnet --list-sdks | grep -q "^8"; then
+          if ! dotnet --list-sdks | grep -q '^8'; then
             echo "Installing .NET 8 SDK..."
-            wget https://dotnet.microsoft.com/download/dotnet/scripts/v1/dotnet-install.sh -O dotnet-install.sh
-            chmod +x dotnet-install.sh
-            ./dotnet-install.sh --version 8.0.19 --install-dir $HOME/.dotnet
+            wget https://dotnet.microsoft.com/download/dotnet/thank-you/sdk-8.0.400-linux-x64-binaries -O dotnet-sdk.tar.gz
+            mkdir -p $HOME/dotnet
+            tar -xzf dotnet-sdk.tar.gz -C $HOME/dotnet
+            export DOTNET_ROOT=$HOME/dotnet
+            export PATH=$HOME/dotnet:$PATH
+            echo "DOTNET_ROOT=$DOTNET_ROOT" >> $GITHUB_ENV
+            echo "PATH=$PATH" >> $GITHUB_ENV
+          else
+            echo ".NET 8 SDK already installed"
           fi
-          export PATH=$HOME/.dotnet:$PATH
-          dotnet --list-sdks
 
       - name: Install PAC CLI
         run: |
-          # Use provided pac_path or default to $HOME/.pac
-          PAC_PATH="${{ inputs.pac_path }}"
-          if [ -z "$PAC_PATH" ]; then
-            PAC_PATH="$HOME/.pac"
-          fi
-          mkdir -p "$PAC_PATH"
-          dotnet tool install Microsoft.PowerApps.CLI.Tool --version 1.43.6 --tool-path "$PAC_PATH"
-          echo "PAC_PATH=$PAC_PATH" >> $GITHUB_ENV
-          export PATH="$PAC_PATH:$PATH"
+          mkdir -p ${{ inputs.pac_path }}
+          dotnet tool install Microsoft.PowerApps.CLI.Tool --version 1.43.6 --tool-path ${{ inputs.pac_path }}
+          echo "PAC CLI installed at ${{ inputs.pac_path }}"
+          echo "PATH=${{ inputs.pac_path }}:$PATH" >> $GITHUB_ENV
 
-      - name: Verify PAC CLI
+      - name: Authenticate to Power Platform
         run: |
-          echo "PAC CLI path: $PAC_PATH"
-          $PAC_PATH/pac tool list
+          PAC="$GITHUB_WORKSPACE/.pac/pac"
+          if [ -n "${{ inputs.pp_url }}" ]; then
+            echo "Using Azure SP for authentication to ${{ inputs.pp_url }}"
+            $PAC auth create --url "${{ inputs.pp_url }}" \
+              --applicationId "${{ inputs.azure_client_id }}" \
+              --clientSecret "${{ inputs.azure_client_secret }}" \
+              --tenant "${{ inputs.azure_tenant_id }}"
+          elif [ -n "${{ inputs.env_file }}" ]; then
+            echo "Sourcing environment variables from ${{ inputs.env_file }}"
+            source ${{ inputs.env_file }}
+            $PAC auth create --url "$PP_URL" --username "$PP_USER" --password "$PP_PASSWORD"
+          else
+            echo "Error: No authentication method provided!"
+            exit 1
+          fi
 
       - name: Export & Unpack Solutions
         run: |
+          PAC="$GITHUB_WORKSPACE/.pac/pac"
           mkdir -p solutions
-          SOLUTIONS=$(echo '${{ inputs.solutions }}' | jq -r '.[]')
-          for sol in $SOLUTIONS; do
+          SOLUTIONS='${{ inputs.solutions }}'
+          for sol in $(echo $SOLUTIONS | jq -r '.[]'); do
             echo "Processing solution: $sol"
-            $PAC_PATH/pac auth create --url "$CRM_URL" --clientId "$CLIENT_ID" --clientSecret "$CLIENT_SECRET" --tenant "$TENANT_ID"
-            $PAC_PATH/pac solution export --name "$sol" --path "solutions/$sol.zip" --overwrite
-            $PAC_PATH/pac solution unpack --zip-file "solutions/$sol.zip" --folder "solutions/$sol" --allow-delete
+            $PAC solution export --name "$sol" --path "solutions/$sol.zip" --overwrite
+            $PAC solution unpack --zip-file "solutions/$sol.zip" --folder "solutions/$sol" --allow-delete
           done
 
-      - name: Commit & Push Changes
+      - name: Commit & Push (CI only)
+        if: ${{ inputs.env_file != '' }}
         run: |
           git config user.name "github-actions"
           git config user.email "actions@github.com"
