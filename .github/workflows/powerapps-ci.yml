@@ -37,13 +37,14 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # ---------------- Install prerequisites ----------------
+      # ---------------- Install jq for JSON parsing ----------------
       - name: Install jq
         run: sudo apt-get update && sudo apt-get install -y jq
 
-      - name: Install PAC CLI
-        uses: microsoft/powerplatform-actions/actions-install@v1
+      # ---------------- Install PAC CLI ----------------
+      - name: Install Power Platform CLI (PAC)
         id: pac-install
+        uses: microsoft/powerplatform-actions/actions-install@v1
 
       - name: Add PAC CLI to PATH
         run: |
@@ -51,29 +52,33 @@ jobs:
           export PATH=$PATH:${{ steps.pac-install.outputs.pac-path }}
           echo "PATH=$PATH" >> $GITHUB_ENV
 
-      # ---------------- Create solutions folder ----------------
+      # ---------------- Authenticate ----------------
+      - name: Authenticate to Power Platform
+        run: |
+          pac auth create \
+            --url "${{ needs.load-env.outputs.POWER_PLATFORM_URL }}" \
+            --tenant "${{ secrets.AZURE_TENANT_ID }}" \
+            --applicationId "${{ secrets.AZURE_CLIENT_ID }}" \
+            --clientSecret "${{ secrets.AZURE_CLIENT_SECRET }}"
+
+      # ---------------- Ensure solutions folder exists ----------------
       - name: Create solutions folder
         run: mkdir -p solutions
 
-      # ---------------- Login to Power Platform ----------------
-      - name: PAC Login
+      # ---------------- Export & Unpack each solution ----------------
+      - name: Export & Unpack Solutions
         run: |
-          pac login \
-            --url "${{ needs.load-env.outputs.POWER_PLATFORM_URL }}" \
-            --tenant "${{ secrets.AZURE_TENANT_ID }}" \
-            --clientId "${{ secrets.AZURE_CLIENT_ID }}" \
-            --clientSecret "${{ secrets.AZURE_CLIENT_SECRET }}"
-
-      # ---------------- Export & Unpack Solutions ----------------
-      - name: Process Solutions
-        run: |
-          for solution in $(echo '${{ needs.load-env.outputs.SOLUTION_LIST }}' | jq -r '.[]'); do
+          SOLUTIONS=$(echo '${{ needs.load-env.outputs.SOLUTION_LIST }}' | jq -r '.[]')
+          for solution in $SOLUTIONS; do
             echo "Processing solution: $solution"
+            gh-actions-run() {
+              echo "Use GitHub Action for $1 if possible"
+            }
             pac solution export --name "$solution" --path "solutions/$solution.zip" --overwrite
             pac solution unpack --zip-file "solutions/$solution.zip" --folder "solutions/$solution" --allow-delete
           done
 
-      # ---------------- Commit & Push Changes ----------------
+      # ---------------- Commit & Push ----------------
       - name: Commit and Push Changes
         run: |
           git config user.name "github-actions"
