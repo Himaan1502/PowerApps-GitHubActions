@@ -7,11 +7,11 @@ on:
   workflow_dispatch: {}
 
 permissions:
-  contents: write  # ✅ required for git push
+  contents: write  # required for git push
 
 jobs:
   load-env:
-    runs-on: self-hosted
+    runs-on: self-hosted   # ✅ use your SHR
     outputs:
       SOLUTION_LIST: ${{ steps.set-outputs.outputs.SOLUTION_LIST }}
       DEPENDENCY_ORDER: ${{ steps.set-outputs.outputs.DEPENDENCY_ORDER }}
@@ -31,7 +31,7 @@ jobs:
           echo "POWER_PLATFORM_URL=$POWER_PLATFORM_URL" >> $GITHUB_OUTPUT
 
   ci:
-    runs-on: self-hosted
+    runs-on: self-hosted   # ✅ use your SHR
     needs: load-env
     strategy:
       matrix:
@@ -41,26 +41,20 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # ✅ Authenticate once
-      - name: Authenticate to Power Platform
-        uses: microsoft/powerplatform-actions/actions/authenticate@v1
+      # ✅ Export each solution (auth handled here)
+      - name: Export Solution ${{ matrix.solution }}
+        uses: microsoft/powerplatform-actions/export-solution@v1
         with:
+          environment-url: ${{ needs.load-env.outputs.POWER_PLATFORM_URL }}
           app-id: ${{ secrets.AZURE_CLIENT_ID }}
           client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          environment-url: ${{ needs.load-env.outputs.POWER_PLATFORM_URL }}
-
-      # ✅ Export each solution
-      - name: Export Solution ${{ matrix.solution }}
-        uses: microsoft/powerplatform-actions/actions/export-solution@v1
-        with:
-          environment-url: ${{ needs.load-env.outputs.POWER_PLATFORM_URL }}
           solution-name: ${{ matrix.solution }}
           solution-output-file: solutions/${{ matrix.solution }}.zip
 
       # ✅ Unpack each solution
       - name: Unpack Solution ${{ matrix.solution }}
-        uses: microsoft/powerplatform-actions/actions/unpack-solution@v1
+        uses: microsoft/powerplatform-actions/unpack-solution@v1
         with:
           solution-file: solutions/${{ matrix.solution }}.zip
           solution-folder: solutions/${{ matrix.solution }}
@@ -72,5 +66,5 @@ jobs:
           git config user.name "github-actions"
           git config user.email "actions@github.com"
           git add solutions/*
-          git commit -m "Updated Power Platform solution ${{ matrix.solution }}" || echo "No changes"
+          git commit -m "Updated Power Platform solutions" || echo "No changes"
           git push
