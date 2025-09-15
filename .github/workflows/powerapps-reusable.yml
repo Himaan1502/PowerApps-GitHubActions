@@ -6,16 +6,18 @@ on:
       pp_url:
         required: true
         type: string
+      azure_client_id:
+        required: true
+        type: string
+      azure_client_secret:
+        required: true
+        type: string
+      azure_tenant_id:
+        required: true
+        type: string
       solutions:
         required: true
         type: string  # JSON array, e.g. '["CoreSolution","FrontendSolution"]'
-    secrets:
-      AZURE_CLIENT_ID:
-        required: true
-      AZURE_CLIENT_SECRET:
-        required: true
-      AZURE_TENANT_ID:
-        required: true
 
 jobs:
   build:
@@ -28,35 +30,41 @@ jobs:
 
       - name: Ensure .NET SDK 8 installed
         run: |
-          if ! dotnet --list-sdks | grep -q '^8\.'; then
+          if ! dotnet --list-sdks 2>/dev/null | grep -q '^8\.'; then
             echo "Installing .NET 8 SDK..."
             wget https://dotnet.microsoft.com/download/dotnet/scripts/v1/dotnet-install.sh -O dotnet-install.sh
             chmod +x dotnet-install.sh
             ./dotnet-install.sh --version 8.0.19 --install-dir $HOME/.dotnet
             echo "DOTNET_ROOT=$HOME/.dotnet" >> $GITHUB_ENV
-            echo "$HOME/.dotnet" >> $GITHUB_PATH
+            echo "$HOME/.dotnet:$HOME/.dotnet/tools" >> $GITHUB_PATH
+          else
+            echo ".NET 8 SDK already installed."
           fi
 
-      - name: Install PAC CLI
+      - name: Ensure PAC CLI installed
         run: |
           PAC_PATH="$HOME/.pac"
-          mkdir -p "$PAC_PATH"
-          dotnet tool install Microsoft.PowerApps.CLI.Tool --version 1.43.6 --tool-path "$PAC_PATH"
-          echo "PAC CLI installed at $PAC_PATH"
-          echo "$PAC_PATH" >> $GITHUB_PATH
+          if command -v pac >/dev/null 2>&1; then
+            echo "PAC CLI already installed at $(command -v pac)"
+          else
+            echo "Installing PAC CLI..."
+            mkdir -p "$PAC_PATH"
+            dotnet tool install Microsoft.PowerApps.CLI.Tool --version 1.43.6 --tool-path "$PAC_PATH"
+            echo "$PAC_PATH" >> $GITHUB_PATH
+          fi
 
       - name: Authenticate PAC CLI
         run: |
           pac auth create \
             --url "${{ inputs.pp_url }}" \
-            --tenant "${{ secrets.AZURE_TENANT_ID }}" \
-            --applicationId "${{ secrets.AZURE_CLIENT_ID }}" \
-            --clientSecret "${{ secrets.AZURE_CLIENT_SECRET }}"
+            --tenant "${{ inputs.azure_tenant_id }}" \
+            --applicationId "${{ inputs.azure_client_id }}" \
+            --clientSecret "${{ inputs.azure_client_secret }}"
 
       - name: Export & Unpack Solutions
         run: |
           mkdir -p solutions
-          SOLS='${{ inputs.solutions }}'
+          SOLS=${{ inputs.solutions }}
           for sol in $(echo $SOLS | jq -r '.[]'); do
             echo "Processing solution: $sol"
             pac solution export --name "$sol" --path "solutions/$sol.zip" --overwrite
