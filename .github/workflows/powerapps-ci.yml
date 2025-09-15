@@ -1,7 +1,10 @@
 name: Power Apps CI
 
 on:
-  workflow_dispatch: {}
+  push:
+    branches:
+      - main
+  workflow_dispatch: {}   # keep this if you also want manual trigger
 
 jobs:
   ci:
