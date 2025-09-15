@@ -12,55 +12,74 @@ permissions:
 jobs:
   ci:
     runs-on: self-hosted
-
     steps:
-      - name: Checkout repo
-        uses: actions/checkout@v4
+      # Checkout repository
+      - uses: actions/checkout@v4
 
+      # Install jq (used for looping JSON arrays)
       - name: Install jq
         run: sudo apt-get update && sudo apt-get install -y jq
 
+      # Check and install .NET 8 runtime if missing
+      - name: Install .NET 8 Runtime if missing
+        run: |
+          if ! dotnet --list-runtimes | grep -q 'Microsoft.NETCore.App 8.'; then
+            echo ".NET 8 runtime not found. Installing..."
+            sudo apt-get update
+            sudo apt-get install -y dotnet-runtime-8.0
+          else
+            echo ".NET 8 runtime already installed."
+          fi
+          dotnet --info
+
+      # Install PAC CLI via GitHub Action
       - name: Install PAC CLI
         uses: microsoft/powerplatform-actions/actions-install@v1
         with:
           pac-version-override: 1.43.6
           add-tools-to-path: true
 
+      # Verify PAC CLI
       - name: Verify PAC CLI
         run: pac --version
 
-      - name: Load environment variables
+      # Load environment variables from env/dev.txt
+      - name: Load Environment Variables
         run: |
           set -a
           source env/dev.txt
           set +a
-          echo "POWER_PLATFORM_URL=$POWER_PLATFORM_URL" >> $GITHUB_ENV
-          echo "CLIENT_ID=$CLIENT_ID" >> $GITHUB_ENV
-          echo "CLIENT_SECRET=$CLIENT_SECRET" >> $GITHUB_ENV
-          echo "TENANT_ID=$TENANT_ID" >> $GITHUB_ENV
 
-      - name: PAC CLI Auth
-        run: |
-          pac auth create \
-            --url $POWER_PLATFORM_URL \
-            --tenant $TENANT_ID \
-            --applicationId $CLIENT_ID \
-            --clientSecret $CLIENT_SECRET
+      # Ensure solutions folder exists
+      - name: Prepare solutions folder
+        run: mkdir -p solutions
 
+      # Export & unpack each solution dynamically
       - name: Export & Unpack Solutions
         run: |
-          mkdir -p solutions
           SOLUTIONS='["CoreSolution","DataverseSchemaSolution","FrontendAppSolution","AutomationSolution"]'
           for sol in $(echo $SOLUTIONS | jq -r '.[]'); do
             echo "Processing $sol"
-            pac solution export --name "$sol" --path "solutions/$sol.zip" --overwrite
-            pac solution unpack --zip-file "solutions/$sol.zip" --folder "solutions/$sol" --allow-delete
+            pac solution export \
+              --name "$sol" \
+              --path "solutions/$sol.zip" \
+              --overwrite \
+              --environment-url "$POWER_PLATFORM_URL" \
+              --client-id "$AZURE_CLIENT_ID" \
+              --client-secret "$AZURE_CLIENT_SECRET" \
+              --tenant-id "$AZURE_TENANT_ID"
+
+            pac solution unpack \
+              --zip-file "solutions/$sol.zip" \
+              --folder "solutions/$sol" \
+              --allow-delete
           done
 
+      # Commit & push changes back to GitHub
       - name: Commit & Push Changes
         run: |
           git config user.name "github-actions"
           git config user.email "actions@github.com"
-          git add solutions || true
+          git add solutions/*
           git diff --cached --quiet || git commit -m "Updated Power Platform solutions"
           git push
