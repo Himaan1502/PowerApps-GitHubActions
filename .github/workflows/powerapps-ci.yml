@@ -10,52 +10,64 @@ permissions:
   contents: write  # required for git push
 
 jobs:
-  ci:
+  setup:
     runs-on: self-hosted
-
+    outputs:
+      SOLUTIONS_JSON: ${{ steps.set-solutions.outputs.SOLUTIONS_JSON }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # ✅ Install jq for JSON parsing
-      - name: Install jq
+      - name: Install jq (required to parse JSON)
         run: sudo apt-get update && sudo apt-get install -y jq
 
-      # ✅ Install PAC CLI 1.43.6
-      - name: Install Power Platform CLI
+      - name: Install PAC CLI
         uses: microsoft/powerplatform-actions/actions-install@v1
         with:
           pac-version: 1.43.6
 
-      # ✅ Add PAC CLI to PATH
       - name: Add PAC CLI to PATH
         run: |
           echo "Adding PAC CLI to PATH"
-          echo "${{ env.POWERPLATFORMTOOLS_PACPATH }}" >> $GITHUB_PATH
+          echo "${{ env.POWERPLATFORMTOOLS_PACPATH }}"  # sanity check
+          echo "PATH=${{ env.POWERPLATFORMTOOLS_PACPATH }}:$PATH" >> $GITHUB_ENV
 
-      # ✅ Create solutions folder
-      - name: Create solutions folder
-        run: mkdir -p solutions
-
-      # ✅ Define solution list dynamically
       - name: Set solution list
         id: set-solutions
         run: |
+          mkdir -p solutions
           echo '["CoreSolution","DataverseSchemaSolution","FrontendAppSolution","AutomationSolution"]' > solutions.json
-          SOLUTIONS=$(cat solutions.json | jq -r '.[]')
-          echo "SOLUTIONS=$SOLUTIONS" >> $GITHUB_ENV
+          SOLUTIONS_JSON=$(cat solutions.json)
+          echo "SOLUTIONS_JSON=$SOLUTIONS_JSON" >> $GITHUB_OUTPUT
 
-      # ✅ Export and unpack each solution
-      - name: Export and Unpack Solutions
+  ci:
+    runs-on: self-hosted
+    needs: setup
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install PAC CLI (ensure available)
+        uses: microsoft/powerplatform-actions/actions-install@v1
+        with:
+          pac-version: 1.43.6
+
+      - name: Add PAC CLI to PATH
         run: |
-          for solution in $SOLUTIONS; do
-            echo "Processing solution: $solution"
+          echo "PATH=${{ env.POWERPLATFORMTOOLS_PACPATH }}:$PATH" >> $GITHUB_ENV
 
-            # Export solution
-            echo "Exporting $solution..."
-            gh-action-export() {
-              echo "Export via GitHub Action (for documentation)"
-            }
+      - name: Authenticate with Power Platform
+        run: |
+          pac auth create \
+            --url "${{ secrets.POWER_PLATFORM_URL }}" \
+            --applicationId "${{ secrets.AZURE_CLIENT_ID }}" \
+            --clientSecret "${{ secrets.AZURE_CLIENT_SECRET }}" \
+            --tenant "${{ secrets.AZURE_TENANT_ID }}"
+
+      - name: Export & Unpack Solutions
+        run: |
+          for solution in $(echo '${{ needs.setup.outputs.SOLUTIONS_JSON }}' | jq -r '.[]'); do
+            echo "Processing solution: $solution"
             pac export-solution \
               --environment-url "${{ secrets.POWER_PLATFORM_URL }}" \
               --solution-name "$solution" \
@@ -64,23 +76,16 @@ jobs:
               --app-id "${{ secrets.AZURE_CLIENT_ID }}" \
               --client-secret "${{ secrets.AZURE_CLIENT_SECRET }}" \
               --tenant-id "${{ secrets.AZURE_TENANT_ID }}"
-
-            # Unpack solution
-            echo "Unpacking $solution..."
-            gh-action-unpack() {
-              echo "Unpack via GitHub Action (for documentation)"
-            }
             pac unpack-solution \
               --zip-file "solutions/$solution.zip" \
               --folder "solutions/$solution" \
               --allow-delete
           done
 
-      # ✅ Commit changes back to repo
-      - name: Commit and Push Changes
+      - name: Commit & Push Changes
         run: |
           git config user.name "github-actions"
           git config user.email "actions@github.com"
-          git add solutions || echo "No changes to add"
+          git add solutions/*
           git diff --cached --quiet || git commit -m "Updated Power Platform solutions"
           git push
