@@ -1,94 +1,14 @@
-name: Power Apps CI
+name: PowerApps CI
 
 on:
   push:
     branches:
       - main
-  workflow_dispatch: {}
-
-permissions:
-  contents: write
+  workflow_dispatch:
 
 jobs:
   ci:
-    runs-on: self-hosted
-    env:
-      PAC_PATH: ${{ github.workspace }}/.pac
-    steps:
-
-      # Checkout repo
-      - uses: actions/checkout@v4
-
-      # Install jq for JSON parsing
-      - name: Install jq
-        run: sudo apt-get update && sudo apt-get install -y jq
-
-      # Install .NET 8 SDK if missing
-      - name: Ensure .NET 8 SDK
-        run: |
-          if ! dotnet --list-sdks | grep -q '^8\.'; then
-            echo ".NET 8 SDK not found. Installing..."
-            sudo apt-get update
-            sudo apt-get install -y dotnet-sdk-8.0
-          else
-            echo ".NET 8 SDK already installed."
-          fi
-          dotnet --info
-
-      # Install PAC CLI via dotnet tool
-      - name: Install PAC CLI
-        run: |
-          mkdir -p $PAC_PATH
-          dotnet tool install Microsoft.PowerApps.CLI.Tool \
-            --version 1.43.6 \
-            --tool-path $PAC_PATH
-          echo "$PAC_PATH" >> $GITHUB_PATH
-
-      # Verify PAC CLI installation
-      - name: Verify PAC CLI
-        run: |
-          $PAC_PATH/pac version
-
-      # Load solutions dynamically
-      - name: Load solutions
-        run: |
-          echo '["CoreSolution","DataverseSchemaSolution","FrontendAppSolution","AutomationSolution"]' > solutions.json
-          SOLUTIONS=$(cat solutions.json | jq -r '.[]')
-          echo "SOLUTIONS=$SOLUTIONS" >> $GITHUB_ENV
-
-      # Authenticate using service principal and export/unpack solutions
-      - name: Export & Unpack Solutions
-        run: |
-          mkdir -p solutions
-          for sol in $SOLUTIONS; do
-            echo "Processing solution: $sol"
-
-            # PAC auth
-            $PAC_PATH/pac auth create \
-              --name ci-sp-auth \
-              --url "$ORG_URL" \
-              --clientId "$CLIENT_ID" \
-              --clientSecret "$CLIENT_SECRET" \
-              --tenant "$TENANT_ID"
-
-            # Export solution
-            $PAC_PATH/pac solution export \
-              --name "$sol" \
-              --path "solutions/$sol.zip" \
-              --overwrite
-
-            # Unpack solution
-            $PAC_PATH/pac solution unpack \
-              --zip-file "solutions/$sol.zip" \
-              --folder "solutions/$sol" \
-              --allow-delete
-          done
-
-      # Commit & push changes
-      - name: Commit & Push Solutions
-        run: |
-          git config user.name "github-actions"
-          git config user.email "actions@github.com"
-          git add solutions/*
-          git diff --cached --quiet || git commit -m "Updated Power Platform solutions"
-          git push
+    uses: ./.github/workflows/powerapps-reusable.yml
+    with:
+      env_file: env/dev.txt
+      solutions: '["CoreSolution","DataverseSchemaSolution","FrontendAppSolution","AutomationSolution"]'
