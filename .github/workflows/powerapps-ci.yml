@@ -7,11 +7,12 @@ on:
   workflow_dispatch: {}
 
 permissions:
-  contents: write  # ✅ required for git push
+  contents: write  # required for git push
 
 jobs:
   load-env:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted   # ✅ use your SHR
+    labels: linux   # optional: add your runner label
     outputs:
       SOLUTION_LIST: ${{ steps.set-outputs.outputs.SOLUTION_LIST }}
       DEPENDENCY_ORDER: ${{ steps.set-outputs.outputs.DEPENDENCY_ORDER }}
@@ -31,9 +32,9 @@ jobs:
           echo "POWER_PLATFORM_URL=$POWER_PLATFORM_URL" >> $GITHUB_OUTPUT
 
   ci:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted   # ✅ use your SHR
+    labels: powerapps-shr   # optional: filter runner
     needs: load-env
-
     strategy:
       matrix:
         solution: ${{ fromJSON(needs.load-env.outputs.SOLUTION_LIST) }}
@@ -42,9 +43,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # ✅ Setup PAC CLI (official action)
-      - name: Setup Power Platform CLI
-        uses: microsoft/powerplatform-actions/setup-pac@v1
+      # ✅ PAC CLI already installed on SHR, no need to install
 
       # ✅ Authenticate (official action)
       - name: Power Platform Auth
