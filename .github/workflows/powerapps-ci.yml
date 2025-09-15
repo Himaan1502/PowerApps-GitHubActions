@@ -27,7 +27,7 @@ jobs:
           echo "POWER_PLATFORM_URL=$POWER_PLATFORM_URL" >> $GITHUB_ENV
 
       - name: Call reusable workflow
-        uses: ./.github/workflows/powerapps-reusable.yml
+        uses: ./.github/workflows/powerapps-reusable.yml@main
         with:
           pp_url: ${{ env.POWER_PLATFORM_URL }}
           solutions: ${{ env.SOLUTION_LIST }}
