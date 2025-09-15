@@ -1,97 +1,74 @@
-name: Power Apps Reusable Pipeline (Enterprise)
+# .github/workflows/powerapps-reusable.yml
+name: PowerApps Reusable Workflow
 
 on:
   workflow_call:
     inputs:
-      environment:
-        required: true
-        type: string
-      mode: # ci = export/unpack/commit, cd = import/deploy
-        required: true
+      pac_path:
+        required: false
         type: string
       solutions:
         required: true
         type: string
-      dependency_order: # JSON array (["A","B"]) or comma-separated list
-        required: false
+      env_file:
+        required: true
         type: string
-    secrets:
-      AZURE_CLIENT_ID:
-        required: true
-      AZURE_TENANT_ID:
-        required: true
-      AZURE_CLIENT_SECRET:
-        required: true
-      POWER_PLATFORM_URL:
-        required: true
-
-permissions:
-  contents: write
 
 jobs:
-  # ---------------- CI JOB ----------------
-  ci:
-    if: ${{ inputs.mode == 'ci' }}
+  powerapps-workflow:
     runs-on: self-hosted
-    strategy:
-      matrix:
-        solution: ${{ fromJSON(inputs.solutions) }}
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout Repo
+        uses: actions/checkout@v4
 
-      # Optional if PAC not preinstalled on SHR
-      - name: Install Power Platform Tools
-        uses: microsoft/powerplatform-actions/actions-install@v1
+      - name: Install jq
+        run: sudo apt-get update && sudo apt-get install -y jq
 
-      - name: Authenticate to Power Platform
-        uses: microsoft/powerplatform-actions/authenticate@v1
-        with:
-          app-id: ${{ secrets.AZURE_CLIENT_ID }}
-          client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          environment-url: ${{ secrets.POWER_PLATFORM_URL }}
+      - name: Load environment variables
+        run: |
+          set -a
+          source ${{ inputs.env_file }}
+          set +a
 
-      - name: Export Solution ${{ matrix.solution }}
-        uses: microsoft/powerplatform-actions/export-solution@v1
-        with:
-          solution-name: ${{ matrix.solution }}
-          solution-output-file: solutions/${{ matrix.solution }}.zip
+      - name: Ensure .NET 8 SDK
+        run: |
+          if ! dotnet --list-sdks | grep -q "^8"; then
+            echo "Installing .NET 8 SDK..."
+            wget https://dotnet.microsoft.com/download/dotnet/scripts/v1/dotnet-install.sh -O dotnet-install.sh
+            chmod +x dotnet-install.sh
+            ./dotnet-install.sh --version 8.0.19 --install-dir $HOME/.dotnet
+            export PATH=$HOME/.dotnet:$PATH
+          fi
+          dotnet --list-sdks
 
-      - name: Unpack Solution ${{ matrix.solution }}
-        uses: microsoft/powerplatform-actions/unpack-solution@v1
-        with:
-          solution-file: solutions/${{ matrix.solution }}.zip
-          solution-folder: solutions/${{ matrix.solution }}
-          allow-delete: true
+      - name: Install PAC CLI
+        run: |
+          PAC_PATH=${{ inputs.pac_path:-$HOME/.pac}}
+          mkdir -p $PAC_PATH
+          dotnet tool install Microsoft.PowerApps.CLI.Tool --version 1.43.6 --tool-path $PAC_PATH
+          echo "PAC installed to $PAC_PATH"
+          echo "PAC_PATH=$PAC_PATH" >> $GITHUB_ENV
+          export PATH=$PAC_PATH:$PATH
 
-      - name: Commit and Push Changes
+      - name: Verify PAC CLI
+        run: $PAC_PATH/pac tool list
+
+      - name: Export & Unpack Solutions
+        run: |
+          mkdir -p solutions
+          SOLUTIONS=$(echo '${{ inputs.solutions }}' | jq -r '.[]')
+          for sol in $SOLUTIONS; do
+            echo "Processing solution: $sol"
+            $PAC_PATH/pac auth create --url "$CRM_URL" --clientId "$CLIENT_ID" --clientSecret "$CLIENT_SECRET" --tenant "$TENANT_ID"
+            $PAC_PATH/pac solution export --name "$sol" --path "solutions/$sol.zip" --overwrite
+            $PAC_PATH/pac solution unpack --zip-file "solutions/$sol.zip" --folder "solutions/$sol" --allow-delete
+          done
+
+      - name: Commit & Push Changes
         run: |
           git config user.name "github-actions"
           git config user.email "actions@github.com"
           git add solutions/*
-          git commit -m "Updated solution ${{ matrix.solution }}" || echo "No changes"
+          git diff --cached --quiet || git commit -m "Updated Power Platform solutions"
           git push
-
-  # ---------------- CD JOB ----------------
-  cd:
-    if: ${{ inputs.mode == 'cd' }}
-    runs-on: self-hosted
-    strategy:
-      matrix:
-        solution: ${{ fromJSON(inputs.dependency_order) }}
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Authenticate to Power Platform
-        uses: microsoft/powerplatform-actions/authenticate@v1
-        with:
-          app-id: ${{ secrets.AZURE_CLIENT_ID }}
-          client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          environment-url: ${{ secrets.POWER_PLATFORM_URL }}
-
-      - name: Import Solution ${{ matrix.solution }}
-        uses: microsoft/powerplatform-actions/import-solution@v1
-        with:
-          solution-file: solutions/${{ matrix.solution }}.zip
-          activate-plugins: true
