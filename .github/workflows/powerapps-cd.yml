@@ -16,13 +16,17 @@ permissions:
   contents: write
 
 jobs:
-  deploy:
+  prepare:
     runs-on: self-hosted
+    outputs:
+      pp_url: ${{ steps.set-vars.outputs.pp_url }}
+      solutions: ${{ steps.set-vars.outputs.solutions }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Load environment variables
+        id: set-vars
         run: |
           ENV_FILE="env/${{ github.event.inputs.environment }}.txt"
           if [ ! -f "$ENV_FILE" ]; then
@@ -32,17 +36,16 @@ jobs:
           set -o allexport
           source "$ENV_FILE"
           set +o allexport
-          echo "ENV_NAME=$ENV_NAME" >> $GITHUB_ENV
-          echo "SOLUTION_LIST=$SOLUTION_LIST" >> $GITHUB_ENV
-          echo "DEPENDENCY_ORDER=$DEPENDENCY_ORDER" >> $GITHUB_ENV
-          echo "POWER_PLATFORM_URL=$POWER_PLATFORM_URL" >> $GITHUB_ENV
+          echo "pp_url=$POWER_PLATFORM_URL" >> $GITHUB_OUTPUT
+          echo "solutions=$SOLUTION_LIST" >> $GITHUB_OUTPUT
 
-      - name: Call reusable workflow
-        uses: ./.github/workflows/powerapps-reusable.yml
-        with:
-          pp_url: ${{ env.POWER_PLATFORM_URL }}
-          solutions: ${{ env.SOLUTION_LIST }}
-        secrets:
-          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
-          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
-          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+  deploy:
+    needs: prepare
+    uses: ./.github/workflows/powerapps-reusable.yml
+    with:
+      pp_url: ${{ needs.prepare.outputs.pp_url }}
+      solutions: ${{ needs.prepare.outputs.solutions }}
+    secrets:
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
