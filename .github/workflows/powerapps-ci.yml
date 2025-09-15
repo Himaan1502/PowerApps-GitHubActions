@@ -7,79 +7,97 @@ on:
   workflow_dispatch: {}
 
 permissions:
-  contents: write  # required for git push
+  contents: write
 
 jobs:
-  load-env:
-    runs-on: self-hosted
-    outputs:
-      SOLUTION_LIST: ${{ steps.set-outputs.outputs.SOLUTION_LIST }}
-      DEPENDENCY_ORDER: ${{ steps.set-outputs.outputs.DEPENDENCY_ORDER }}
-      POWER_PLATFORM_URL: ${{ steps.set-outputs.outputs.POWER_PLATFORM_URL }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Load Env Vars (Dev)
-        id: set-outputs
-        run: |
-          set -a
-          source env/dev.txt
-          set +a
-          echo "SOLUTION_LIST=$SOLUTION_LIST" >> $GITHUB_OUTPUT
-          echo "DEPENDENCY_ORDER=$DEPENDENCY_ORDER" >> $GITHUB_OUTPUT
-          echo "POWER_PLATFORM_URL=$POWER_PLATFORM_URL" >> $GITHUB_OUTPUT
-
   ci:
     runs-on: self-hosted
-    needs: load-env
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # ---------------- Install jq for JSON parsing ----------------
+      # ---------------- Install jq ----------------
       - name: Install jq
         run: sudo apt-get update && sudo apt-get install -y jq
 
       # ---------------- Install PAC CLI ----------------
-      - name: Install Power Platform CLI (PAC)
-        id: pac-install
+      - name: Install PAC CLI
         uses: microsoft/powerplatform-actions/actions-install@v1
-
-      - name: Add PAC CLI to PATH
-        run: |
-          echo "Adding PAC CLI to PATH"
-          export PATH=$PATH:${{ steps.pac-install.outputs.pac-path }}
-          echo "PATH=$PATH" >> $GITHUB_ENV
 
       # ---------------- Authenticate ----------------
       - name: Authenticate to Power Platform
-        run: |
-          pac auth create \
-            --url "${{ needs.load-env.outputs.POWER_PLATFORM_URL }}" \
-            --tenant "${{ secrets.AZURE_TENANT_ID }}" \
-            --applicationId "${{ secrets.AZURE_CLIENT_ID }}" \
-            --clientSecret "${{ secrets.AZURE_CLIENT_SECRET }}"
+        uses: microsoft/powerplatform-actions/authenticate@v1
+        with:
+          url: ${{ secrets.POWER_PLATFORM_URL }}
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
 
       # ---------------- Ensure solutions folder exists ----------------
       - name: Create solutions folder
         run: mkdir -p solutions
 
-      # ---------------- Export & Unpack each solution ----------------
-      - name: Export & Unpack Solutions
-        run: |
-          SOLUTIONS=$(echo '${{ needs.load-env.outputs.SOLUTION_LIST }}' | jq -r '.[]')
-          for solution in $SOLUTIONS; do
-            echo "Processing solution: $solution"
-            gh-actions-run() {
-              echo "Use GitHub Action for $1 if possible"
-            }
-            pac solution export --name "$solution" --path "solutions/$solution.zip" --overwrite
-            pac solution unpack --zip-file "solutions/$solution.zip" --folder "solutions/$solution" --allow-delete
-          done
+      # ---------------- Export & Unpack Solutions ----------------
+      - name: Export & Unpack CoreSolution
+        uses: microsoft/powerplatform-actions/export-solution@v1
+        with:
+          environment-url: ${{ secrets.POWER_PLATFORM_URL }}
+          solution-name: CoreSolution
+          solution-output-file: solutions/CoreSolution.zip
+
+      - name: Unpack CoreSolution
+        uses: microsoft/powerplatform-actions/unpack-solution@v1
+        with:
+          solution-file: solutions/CoreSolution.zip
+          solution-folder: solutions/CoreSolution
+          allow-delete: true
+
+      # Repeat export/unpack steps for other solutions
+      - name: Export & Unpack DataverseSchemaSolution
+        uses: microsoft/powerplatform-actions/export-solution@v1
+        with:
+          environment-url: ${{ secrets.POWER_PLATFORM_URL }}
+          solution-name: DataverseSchemaSolution
+          solution-output-file: solutions/DataverseSchemaSolution.zip
+
+      - name: Unpack DataverseSchemaSolution
+        uses: microsoft/powerplatform-actions/unpack-solution@v1
+        with:
+          solution-file: solutions/DataverseSchemaSolution.zip
+          solution-folder: solutions/DataverseSchemaSolution
+          allow-delete: true
+
+      - name: Export & Unpack FrontendAppSolution
+        uses: microsoft/powerplatform-actions/export-solution@v1
+        with:
+          environment-url: ${{ secrets.POWER_PLATFORM_URL }}
+          solution-name: FrontendAppSolution
+          solution-output-file: solutions/FrontendAppSolution.zip
+
+      - name: Unpack FrontendAppSolution
+        uses: microsoft/powerplatform-actions/unpack-solution@v1
+        with:
+          solution-file: solutions/FrontendAppSolution.zip
+          solution-folder: solutions/FrontendAppSolution
+          allow-delete: true
+
+      - name: Export & Unpack AutomationSolution
+        uses: microsoft/powerplatform-actions/export-solution@v1
+        with:
+          environment-url: ${{ secrets.POWER_PLATFORM_URL }}
+          solution-name: AutomationSolution
+          solution-output-file: solutions/AutomationSolution.zip
+
+      - name: Unpack AutomationSolution
+        uses: microsoft/powerplatform-actions/unpack-solution@v1
+        with:
+          solution-file: solutions/AutomationSolution.zip
+          solution-folder: solutions/AutomationSolution
+          allow-delete: true
 
       # ---------------- Commit & Push ----------------
-      - name: Commit and Push Changes
+      - name: Commit and Push
         run: |
           git config user.name "github-actions"
           git config user.email "actions@github.com"
