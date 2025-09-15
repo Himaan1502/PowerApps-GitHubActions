@@ -12,8 +12,10 @@ permissions:
 jobs:
   ci:
     runs-on: self-hosted
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repo
+        uses: actions/checkout@v4
 
       - name: Install jq
         run: sudo apt-get update && sudo apt-get install -y jq
@@ -24,20 +26,33 @@ jobs:
           pac-version-override: 1.43.6
           add-tools-to-path: true
 
-      # Ensure PAC CLI is on PATH
       - name: Verify PAC CLI
         run: pac --version
 
-      # Loop through solutions dynamically
+      - name: Load environment variables
+        run: |
+          set -a
+          source env/dev.txt
+          set +a
+          echo "POWER_PLATFORM_URL=$POWER_PLATFORM_URL" >> $GITHUB_ENV
+          echo "CLIENT_ID=$CLIENT_ID" >> $GITHUB_ENV
+          echo "CLIENT_SECRET=$CLIENT_SECRET" >> $GITHUB_ENV
+          echo "TENANT_ID=$TENANT_ID" >> $GITHUB_ENV
+
+      - name: PAC CLI Auth
+        run: |
+          pac auth create \
+            --url $POWER_PLATFORM_URL \
+            --tenant $TENANT_ID \
+            --applicationId $CLIENT_ID \
+            --clientSecret $CLIENT_SECRET
+
       - name: Export & Unpack Solutions
         run: |
           mkdir -p solutions
           SOLUTIONS='["CoreSolution","DataverseSchemaSolution","FrontendAppSolution","AutomationSolution"]'
           for sol in $(echo $SOLUTIONS | jq -r '.[]'); do
             echo "Processing $sol"
-            gh-action-run() { echo "Use export/unpack action if needed"; }
-
-            # Using GitHub Actions directly is more reliable:
             pac solution export --name "$sol" --path "solutions/$sol.zip" --overwrite
             pac solution unpack --zip-file "solutions/$sol.zip" --folder "solutions/$sol" --allow-delete
           done
@@ -46,6 +61,6 @@ jobs:
         run: |
           git config user.name "github-actions"
           git config user.email "actions@github.com"
-          git add solutions/*
+          git add solutions || true
           git diff --cached --quiet || git commit -m "Updated Power Platform solutions"
           git push
