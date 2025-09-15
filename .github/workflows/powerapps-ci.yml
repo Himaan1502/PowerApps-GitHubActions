@@ -13,8 +13,10 @@ jobs:
   ci:
     uses: ./.github/workflows/powerapps-reusable.yml
     with:
-      pp_url: ${{ secrets.POWER_PLATFORM_DEV_URL }}
-      azure_client_id: ${{ secrets.AZURE_CLIENT_ID }}
-      azure_client_secret: ${{ secrets.AZURE_CLIENT_SECRET }}
-      azure_tenant_id: ${{ secrets.AZURE_TENANT_ID }}
+      pp_url: ${{ env.POWER_PLATFORM_DEV_URL }}
       solutions: '["CoreSolution","DataverseSchemaSolution","FrontendAppSolution","AutomationSolution"]'
+    env:
+      POWER_PLATFORM_DEV_URL: ${{ secrets.POWER_PLATFORM_DEV_URL }}
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
