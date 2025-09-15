@@ -7,7 +7,7 @@ on:
   workflow_dispatch: {}
 
 permissions:
-  contents: write  # 👈 required for git push  
+  contents: write  # ✅ required for git push
 
 jobs:
   load-env:
@@ -31,15 +31,48 @@ jobs:
           echo "POWER_PLATFORM_URL=$POWER_PLATFORM_URL" >> $GITHUB_OUTPUT
 
   ci:
-    uses: ./.github/workflows/powerapps-reusable.yml
+    runs-on: ubuntu-latest
     needs: load-env
-    with:
-      environment: dev
-      mode: ci
-      solutions: ${{ needs.load-env.outputs.SOLUTION_LIST }}
-      dependency_order: ${{ needs.load-env.outputs.DEPENDENCY_ORDER }}
-    secrets:
-      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
-      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-      AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
-      POWER_PLATFORM_URL: ${{ needs.load-env.outputs.POWER_PLATFORM_URL }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # ✅ Install Microsoft Power Platform CLI
+      - name: Setup Power Platform CLI
+        uses: microsoft/powerplatform-actions/setup-pac@v1
+
+      # ✅ Authenticate with Azure AD
+      - name: Authenticate with PAC
+        run: |
+          pac auth create \
+            --url "${{ needs.load-env.outputs.POWER_PLATFORM_URL }}" \
+            --tenant "${{ secrets.AZURE_TENANT_ID }}" \
+            --applicationId "${{ secrets.AZURE_CLIENT_ID }}" \
+            --clientSecret "${{ secrets.AZURE_CLIENT_SECRET }}"
+
+      # ✅ Export and unpack each solution (in order)
+      - name: Export and Unpack Solutions
+        run: |
+          IFS=',' read -ra solutions <<< "${{ needs.load-env.outputs.SOLUTION_LIST }}"
+          for solution in "${solutions[@]}"; do
+            echo "Processing $solution ..."
+            mkdir -p "solutions/$solution"
+            pac solution export \
+              --name "$solution" \
+              --outputFile "solutions/$solution.zip" \
+              --includeVersion
+            pac solution unpack \
+              --solutionZip "solutions/$solution.zip" \
+              --folder "solutions/$solution" \
+              --allowDelete true
+          done
+
+      # ✅ Commit back any changes
+      - name: Commit and Push Changes
+        run: |
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          git add solutions/*
+          git commit -m "Updated Power Platform solutions" || echo "No changes"
+          git push
