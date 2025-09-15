@@ -43,7 +43,7 @@ jobs:
 
       # ✅ Authenticate once
       - name: Authenticate to Power Platform
-        uses: microsoft/powerplatform-actions/authenticate@v1
+        uses: microsoft/powerplatform-actions/actions/authenticate@v1
         with:
           app-id: ${{ secrets.AZURE_CLIENT_ID }}
           client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
@@ -52,7 +52,7 @@ jobs:
 
       # ✅ Export each solution
       - name: Export Solution ${{ matrix.solution }}
-        uses: microsoft/powerplatform-actions/export-solution@v1
+        uses: microsoft/powerplatform-actions/actions/export-solution@v1
         with:
           environment-url: ${{ needs.load-env.outputs.POWER_PLATFORM_URL }}
           solution-name: ${{ matrix.solution }}
@@ -60,7 +60,7 @@ jobs:
 
       # ✅ Unpack each solution
       - name: Unpack Solution ${{ matrix.solution }}
-        uses: microsoft/powerplatform-actions/unpack-solution@v1
+        uses: microsoft/powerplatform-actions/actions/unpack-solution@v1
         with:
           solution-file: solutions/${{ matrix.solution }}.zip
           solution-folder: solutions/${{ matrix.solution }}
