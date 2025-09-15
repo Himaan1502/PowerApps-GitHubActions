@@ -12,7 +12,6 @@ permissions:
 jobs:
   load-env:
     runs-on: self-hosted   # ✅ use your SHR
-    # labels: linux   # optional: add your runner label
     outputs:
       SOLUTION_LIST: ${{ steps.set-outputs.outputs.SOLUTION_LIST }}
       DEPENDENCY_ORDER: ${{ steps.set-outputs.outputs.DEPENDENCY_ORDER }}
@@ -33,7 +32,6 @@ jobs:
 
   ci:
     runs-on: self-hosted   # ✅ use your SHR
-    # labels: powerapps-shr   # optional: filter runner
     needs: load-env
     strategy:
       matrix:
@@ -43,34 +41,32 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # ✅ PAC CLI already installed on SHR, no need to install
-
-      # ✅ Authenticate (official action)
+      # ✅ Authenticate with PAC CLI already installed
       - name: Power Platform Auth
-        uses: microsoft/powerplatform-actions/authenticate@v1
-        with:
-          environment-url: ${{ needs.load-env.outputs.POWER_PLATFORM_URL }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          client-id: ${{ secrets.AZURE_CLIENT_ID }}
-          client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
+        run: |
+          pac auth create \
+            --url "${{ needs.load-env.outputs.POWER_PLATFORM_URL }}" \
+            --tenant "${{ secrets.AZURE_TENANT_ID }}" \
+            --applicationId "${{ secrets.AZURE_CLIENT_ID }}" \
+            --clientSecret "${{ secrets.AZURE_CLIENT_SECRET }}"
 
-      # ✅ Export Solution (official action)
+      # ✅ Export each solution
       - name: Export Solution ${{ matrix.solution }}
-        uses: microsoft/powerplatform-actions/export-solution@v1
+        uses: microsoft/powerplatform-actions/export-solution@v0.2.3
         with:
           solution-name: ${{ matrix.solution }}
           solution-output-file: solutions/${{ matrix.solution }}.zip
           include-version: true
 
-      # ✅ Unpack Solution (official action)
+      # ✅ Unpack each solution
       - name: Unpack Solution ${{ matrix.solution }}
-        uses: microsoft/powerplatform-actions/unpack-solution@v1
+        uses: microsoft/powerplatform-actions/unpack-solution@v0.2.2
         with:
           solution-file: solutions/${{ matrix.solution }}.zip
           solution-folder: solutions/${{ matrix.solution }}
           allow-delete: true
 
-      # ✅ Commit and Push Changes
+      # ✅ Commit changes back to repo
       - name: Commit and Push Changes
         run: |
           git config user.name "github-actions"
