@@ -41,7 +41,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # ✅ Export each solution (auth handled here)
+      # ✅ Install PAC CLI
+      - name: Install Power Platform CLI (PAC)
+        uses: microsoft/powerplatform-actions/actions-install@v1
+
+      # ✅ Export each solution
       - name: Export Solution ${{ matrix.solution }}
         uses: microsoft/powerplatform-actions/export-solution@v1
         with:
