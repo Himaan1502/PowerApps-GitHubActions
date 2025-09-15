@@ -41,24 +41,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # ✅ Ensure .NET SDK is present (for PAC CLI)
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '8.x'   # adjust if your PAC requires 6.x
-
-      # ✅ Ensure PAC CLI + dependencies are installed
+      # ✅ Install PAC CLI
       - name: Install Power Platform CLI (PAC)
         uses: microsoft/powerplatform-actions/actions-install@v1
-
-      # ✅ Authenticate with Power Platform
-      - name: Authenticate
-        uses: microsoft/powerplatform-actions/authenticate@v1
-        with:
-          environment-url: ${{ needs.load-env.outputs.POWER_PLATFORM_URL }}
-          app-id: ${{ secrets.AZURE_CLIENT_ID }}
-          client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
 
       # ✅ Export each solution
       - name: Export Solution ${{ matrix.solution }}
