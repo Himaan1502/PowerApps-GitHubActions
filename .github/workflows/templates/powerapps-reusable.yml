@@ -26,7 +26,9 @@ on:
         required: true
 
 jobs:
-  powerapps:
+  # ---------------- CI JOB ----------------
+  ci:
+    if: ${{ inputs.mode == 'ci' }}
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -46,17 +48,15 @@ jobs:
             --applicationId ${{ secrets.AZURE_CLIENT_ID }} \
             --clientSecret ${{ secrets.AZURE_CLIENT_SECRET }}
 
-      # ---------- CI MODE ----------
       - name: Export Solution
-        if: ${{ inputs.mode == 'ci' }}
         run: |
+          mkdir -p solutions/${{ matrix.solution }}
           pac solution export \
             --name ${{ matrix.solution }} \
-            --outputDirectory solutions/${{ matrix.solution }} \
+            --outputFile solutions/${{ matrix.solution }}.zip \
             --includeVersion
 
       - name: Unpack Solution
-        if: ${{ inputs.mode == 'ci' }}
         run: |
           pac solution unpack \
             --solutionZip solutions/${{ matrix.solution }}.zip \
@@ -64,7 +64,6 @@ jobs:
             --allowDelete true
 
       - name: Commit Solution Changes
-        if: ${{ inputs.mode == 'ci' }}
         run: |
           git config user.name "github-actions"
           git config user.email "actions@github.com"
@@ -72,9 +71,26 @@ jobs:
           git commit -m "Updated solution ${{ matrix.solution }}" || echo "No changes"
           git push
 
-      # ---------- CD MODE ----------
+  # ---------------- CD JOB ----------------
+  cd:
+    if: ${{ inputs.mode == 'cd' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Power Platform CLI
+        run: npm install -g pac-cli
+
+      - name: Power Platform Auth
+        run: |
+          pac auth create \
+            --url ${{ secrets.POWER_PLATFORM_URL }} \
+            --tenant ${{ secrets.AZURE_TENANT_ID }} \
+            --applicationId ${{ secrets.AZURE_CLIENT_ID }} \
+            --clientSecret ${{ secrets.AZURE_CLIENT_SECRET }}
+
       - name: Import Solutions in Dependency Order
-        if: ${{ inputs.mode == 'cd' && matrix.solution == fromJSON(inputs.dependency_order)[0] }}
         run: |
           echo "Deploying solutions in order: ${{ inputs.dependency_order }}"
           for sol in $(echo "${{ inputs.dependency_order }}" | tr ',' '\n'); do
