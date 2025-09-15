@@ -10,70 +10,42 @@ permissions:
   contents: write  # required for git push
 
 jobs:
-  load-env:
-    runs-on: self-hosted   # ✅ use your SHR
-    outputs:
-      SOLUTION_LIST: ${{ steps.set-outputs.outputs.SOLUTION_LIST }}
-      DEPENDENCY_ORDER: ${{ steps.set-outputs.outputs.DEPENDENCY_ORDER }}
-      POWER_PLATFORM_URL: ${{ steps.set-outputs.outputs.POWER_PLATFORM_URL }}
+  ci:
+    runs-on: self-hosted
+
     steps:
-      - name: Checkout
+      - name: Checkout Repo
         uses: actions/checkout@v4
 
       - name: Load Env Vars (Dev)
-        id: set-outputs
+        id: load-env
         run: |
           set -a
           source env/dev.txt
           set +a
-          echo "SOLUTION_LIST=$SOLUTION_LIST" >> $GITHUB_OUTPUT
-          echo "DEPENDENCY_ORDER=$DEPENDENCY_ORDER" >> $GITHUB_OUTPUT
           echo "POWER_PLATFORM_URL=$POWER_PLATFORM_URL" >> $GITHUB_OUTPUT
 
-  ci:
-    runs-on: self-hosted   # ✅ use your SHR
-    needs: load-env
-    strategy:
-      matrix:
-        solution: ${{ fromJSON(needs.load-env.outputs.SOLUTION_LIST) }}
+      # ---------------- CI Steps ----------------
+      - name: Export & Unpack Solutions
+        run: |
+          mkdir -p solutions
+          for solution in $(echo $SOLUTION_LIST | tr ',' ' '); do
+            echo "Processing solution: $solution"
 
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+            # Export
+            pac auth create \
+              --url "$POWER_PLATFORM_URL" \
+              --tenant "$AZURE_TENANT_ID" \
+              --applicationId "$AZURE_CLIENT_ID" \
+              --clientSecret "$AZURE_CLIENT_SECRET"
 
-      # ✅ Ensure .NET is available for PAC CLI
-      # - name: Setup .NET
-      #   uses: actions/setup-dotnet@v4
-      #   with:
-      #     dotnet-version: |
-      #       8.0.x
-      #       6.0.x
+            pac solution export --name "$solution" --path "solutions/$solution.zip" --overwrite
 
-      # ✅ Install PAC CLI
-      # - name: Install Power Platform CLI (PAC)
-      #   uses: microsoft/powerplatform-actions/actions-install@v1
+            # Unpack
+            pac solution unpack --zipfile "solutions/$solution.zip" --folder "solutions/$solution" --allow-delete
+          done
 
-      # ✅ Export each solution
-      - name: Export Solution ${{ matrix.solution }}
-        uses: microsoft/powerplatform-actions/export-solution@v1
-        with:
-          environment-url: ${{ needs.load-env.outputs.POWER_PLATFORM_URL }}
-          app-id: ${{ secrets.AZURE_CLIENT_ID }}
-          client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          solution-name: ${{ matrix.solution }}
-          solution-output-file: solutions/${{ matrix.solution }}.zip
-
-      # ✅ Unpack each solution
-      - name: Unpack Solution ${{ matrix.solution }}
-        uses: microsoft/powerplatform-actions/unpack-solution@v1
-        with:
-          solution-file: solutions/${{ matrix.solution }}.zip
-          solution-folder: solutions/${{ matrix.solution }}
-          allow-delete: true
-
-      # ✅ Commit changes back to repo
-      - name: Commit and Push Changes
+      - name: Commit & Push Changes
         run: |
           git config user.name "github-actions"
           git config user.email "actions@github.com"
