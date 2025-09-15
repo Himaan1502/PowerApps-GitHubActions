@@ -4,19 +4,45 @@ on:
   workflow_dispatch:
     inputs:
       environment:
-        description: 'Target environment (uat or prod)'
+        description: 'Target environment'
         required: true
-        default: uat
+        default: 'uat'
+        type: choice
+        options:
+          - uat
+          - prod
 
 permissions:
   contents: write
 
 jobs:
-  cd:
-    uses: ./.github/workflows/powerapps-reusable.yml
-    with:
-      pp_url: ${{ github.event.inputs.environment == 'prod' && secrets.POWER_PLATFORM_PROD_URL || secrets.POWER_PLATFORM_UAT_URL }}
-      azure_client_id: ${{ secrets.AZURE_CLIENT_ID }}
-      azure_client_secret: ${{ secrets.AZURE_CLIENT_SECRET }}
-      azure_tenant_id: ${{ secrets.AZURE_TENANT_ID }}
-      solutions: '["CoreSolution","DataverseSchemaSolution","FrontendAppSolution","AutomationSolution"]'
+  deploy:
+    runs-on: self-hosted
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Load environment variables
+        run: |
+          ENV_FILE="env/${{ github.event.inputs.environment }}.txt"
+          if [ ! -f "$ENV_FILE" ]; then
+            echo "Environment file $ENV_FILE not found!"
+            exit 1
+          fi
+          set -o allexport
+          source "$ENV_FILE"
+          set +o allexport
+          echo "ENV_NAME=$ENV_NAME" >> $GITHUB_ENV
+          echo "SOLUTION_LIST=$SOLUTION_LIST" >> $GITHUB_ENV
+          echo "DEPENDENCY_ORDER=$DEPENDENCY_ORDER" >> $GITHUB_ENV
+          echo "POWER_PLATFORM_URL=$POWER_PLATFORM_URL" >> $GITHUB_ENV
+
+      - name: Call reusable workflow
+        uses: ./.github/workflows/powerapps-reusable.yml
+        with:
+          pp_url: ${{ env.POWER_PLATFORM_URL }}
+          solutions: ${{ env.SOLUTION_LIST }}
+        secrets:
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
