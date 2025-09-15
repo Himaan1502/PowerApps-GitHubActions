@@ -1,4 +1,4 @@
-name: Power Apps CI
+name: Power Platform CI
 
 on:
   push:
@@ -6,10 +6,15 @@ on:
       - main
   workflow_dispatch: {}
 
+permissions:
+  contents: write
+
 jobs:
   ci:
     uses: ./.github/workflows/powerapps-reusable.yml
     with:
-      pac_path: ${{ github.workspace }}/.pac
-      env_file: env/dev.txt                           # Dev environment variables
+      pp_url: ${{ secrets.POWER_PLATFORM_DEV_URL }}
+      azure_client_id: ${{ secrets.AZURE_CLIENT_ID }}
+      azure_client_secret: ${{ secrets.AZURE_CLIENT_SECRET }}
+      azure_tenant_id: ${{ secrets.AZURE_TENANT_ID }}
       solutions: '["CoreSolution","DataverseSchemaSolution","FrontendAppSolution","AutomationSolution"]'
