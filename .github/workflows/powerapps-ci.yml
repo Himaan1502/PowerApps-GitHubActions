@@ -11,12 +11,27 @@ permissions:
 
 jobs:
   ci:
-    uses: ./.github/workflows/powerapps-reusable.yml
-    with:
-      pp_url: ${{ env.POWER_PLATFORM_DEV_URL }}
-      solutions: '["CoreSolution","DataverseSchemaSolution","FrontendAppSolution","AutomationSolution"]'
-    env:
-      POWER_PLATFORM_DEV_URL: ${{ secrets.POWER_PLATFORM_DEV_URL }}
-      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
-      AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
-      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+    runs-on: self-hosted
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Load dev environment variables
+        run: |
+          set -o allexport
+          source env/dev.txt
+          set +o allexport
+          echo "ENV_NAME=$ENV_NAME" >> $GITHUB_ENV
+          echo "SOLUTION_LIST=$SOLUTION_LIST" >> $GITHUB_ENV
+          echo "DEPENDENCY_ORDER=$DEPENDENCY_ORDER" >> $GITHUB_ENV
+          echo "POWER_PLATFORM_URL=$POWER_PLATFORM_URL" >> $GITHUB_ENV
+
+      - name: Call reusable workflow
+        uses: ./.github/workflows/powerapps-reusable.yml
+        with:
+          pp_url: ${{ env.POWER_PLATFORM_URL }}
+          solutions: ${{ env.SOLUTION_LIST }}
+        secrets:
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
