@@ -5,19 +5,17 @@ on:
     inputs:
       pp_environment:
         required: true
-        type: string  # Environment URL, ID, or unique name
-      azure_client_id:
-        required: true
-        type: string
-      azure_client_secret:
-        required: true
-        type: string
-      azure_tenant_id:
-        required: true
         type: string
       solutions:
         required: true
-        type: string  # JSON array, e.g. '["CoreSolution","FrontendSolution"]'
+        type: string
+    secrets:
+      azure_client_id:
+        required: true
+      azure_client_secret:
+        required: true
+      azure_tenant_id:
+        required: true
 
 jobs:
   build:
@@ -35,8 +33,6 @@ jobs:
             wget https://dotnet.microsoft.com/download/dotnet/scripts/v1/dotnet-install.sh -O dotnet-install.sh
             chmod +x dotnet-install.sh
             ./dotnet-install.sh --version 8.0.20 --install-dir $HOME/.dotnet
-          else
-            echo ".NET 8 SDK already installed."
           fi
           echo "DOTNET_ROOT=$HOME/.dotnet" >> $GITHUB_ENV
           echo "$HOME/.dotnet:$HOME/.dotnet/tools" >> $GITHUB_PATH
@@ -48,8 +44,6 @@ jobs:
           if ! command -v pac >/dev/null 2>&1; then
             echo "Installing PAC CLI..."
             dotnet tool install Microsoft.PowerApps.CLI.Tool --version 1.43.6 --tool-path "$PAC_PATH"
-          else
-            echo "PAC CLI already installed at $(command -v pac)"
           fi
           echo "$PAC_PATH" >> $GITHUB_PATH
           export PATH="$PAC_PATH:$PATH"
@@ -61,15 +55,14 @@ jobs:
           pac auth create \
             --name "ci-auth" \
             --environment "${{ inputs.pp_environment }}" \
-            --tenant "${{ inputs.azure_tenant_id }}" \
-            --applicationId "${{ inputs.azure_client_id }}" \
-            --clientSecret "${{ inputs.azure_client_secret }}"
+            --tenant "${{ secrets.azure_tenant_id }}" \
+            --applicationId "${{ secrets.azure_client_id }}" \
+            --clientSecret "${{ secrets.azure_client_secret }}"
 
       - name: Export & Unpack Solutions
         run: |
           export PATH="$HOME/.pac:$PATH"
           mkdir -p solutions
-          # Parse JSON array properly
           echo '${{ inputs.solutions }}' | jq -r '.[]' | while read sol; do
             echo "Processing solution: $sol"
             pac solution export --name "$sol" --path "solutions/$sol.zip" --overwrite
