@@ -10,27 +10,30 @@ permissions:
   contents: write
 
 jobs:
-  ci:
+  prepare:
     runs-on: self-hosted
+    outputs:
+      pp_url: ${{ steps.set-vars.outputs.pp_url }}
+      solutions: ${{ steps.set-vars.outputs.solutions }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Load dev environment variables
+        id: set-vars
         run: |
           set -o allexport
           source env/dev.txt
           set +o allexport
-          echo "ENV_NAME=$ENV_NAME" >> $GITHUB_ENV
-          echo "SOLUTION_LIST=$SOLUTION_LIST" >> $GITHUB_ENV
-          echo "DEPENDENCY_ORDER=$DEPENDENCY_ORDER" >> $GITHUB_ENV
-          echo "POWER_PLATFORM_URL=$POWER_PLATFORM_URL" >> $GITHUB_ENV
+          echo "pp_url=$POWER_PLATFORM_URL" >> $GITHUB_OUTPUT
+          echo "solutions=$SOLUTION_LIST" >> $GITHUB_OUTPUT
 
-      - name: Call reusable workflow
-        uses: .github/workflows/powerapps-reusable.yml
-        with:
-          pp_url: ${{ env.POWER_PLATFORM_URL }}
-          solutions: ${{ env.SOLUTION_LIST }}
-          azure_client_id: ${{ secrets.AZURE_CLIENT_ID }}
-          azure_client_secret: ${{ secrets.AZURE_CLIENT_SECRET }}
-          azure_tenant_id: ${{ secrets.AZURE_TENANT_ID }}
+  run-reusable:
+    needs: prepare
+    uses: Himaan1502/PowerApps-GitHubActions/.github/workflows/powerapps-reusable.yml@main
+    with:
+      pp_url: ${{ needs.prepare.outputs.pp_url }}
+      solutions: ${{ needs.prepare.outputs.solutions }}
+      azure_client_id: ${{ secrets.AZURE_CLIENT_ID }}
+      azure_client_secret: ${{ secrets.AZURE_CLIENT_SECRET }}
+      azure_tenant_id: ${{ secrets.AZURE_TENANT_ID }}
