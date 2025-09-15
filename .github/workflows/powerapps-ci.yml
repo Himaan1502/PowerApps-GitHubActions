@@ -33,7 +33,7 @@ jobs:
 
   ci:
     runs-on: self-hosted   # ✅ use your SHR
-    labels: powerapps-shr   # optional: filter runner
+    # labels: powerapps-shr   # optional: filter runner
     needs: load-env
     strategy:
       matrix:
