@@ -12,7 +12,7 @@ permissions:
 jobs:
   load-env:
     runs-on: self-hosted   # ✅ use your SHR
-    labels: linux   # optional: add your runner label
+    # labels: linux   # optional: add your runner label
     outputs:
       SOLUTION_LIST: ${{ steps.set-outputs.outputs.SOLUTION_LIST }}
       DEPENDENCY_ORDER: ${{ steps.set-outputs.outputs.DEPENDENCY_ORDER }}
