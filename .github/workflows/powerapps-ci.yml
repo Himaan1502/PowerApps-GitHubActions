@@ -37,42 +37,43 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # ----------------- Ensure .NET is available -----------------
-      - name: Check .NET Installation
-        run: |
-          if ! command -v dotnet &> /dev/null; then
-            echo ".NET not found. Please install .NET on this self-hosted runner."
-            exit 1
-          fi
-          dotnet --info
+      # ---------------- Install prerequisites ----------------
+      - name: Install jq
+        run: sudo apt-get update && sudo apt-get install -y jq
 
-      # ----------------- Install PAC CLI -----------------
       - name: Install PAC CLI
         uses: microsoft/powerplatform-actions/actions-install@v1
+        id: pac-install
 
-      # ----------------- Create solutions folder -----------------
+      - name: Add PAC CLI to PATH
+        run: |
+          echo "Adding PAC CLI to PATH"
+          export PATH=$PATH:${{ steps.pac-install.outputs.pac-path }}
+          echo "PATH=$PATH" >> $GITHUB_ENV
+
+      # ---------------- Create solutions folder ----------------
       - name: Create solutions folder
         run: mkdir -p solutions
 
-      # ----------------- Authenticate -----------------
-      - name: Authenticate to Power Platform
+      # ---------------- Login to Power Platform ----------------
+      - name: PAC Login
         run: |
-          pac auth create \
+          pac login \
             --url "${{ needs.load-env.outputs.POWER_PLATFORM_URL }}" \
             --tenant "${{ secrets.AZURE_TENANT_ID }}" \
-            --applicationId "${{ secrets.AZURE_CLIENT_ID }}" \
+            --clientId "${{ secrets.AZURE_CLIENT_ID }}" \
             --clientSecret "${{ secrets.AZURE_CLIENT_SECRET }}"
 
-      # ----------------- Export and Unpack each solution -----------------
-      - name: Export and Unpack Solutions
+      # ---------------- Export & Unpack Solutions ----------------
+      - name: Process Solutions
         run: |
-          for solution in $(echo "${{ needs.load-env.outputs.SOLUTION_LIST }}" | jq -r '.[]'); do
+          for solution in $(echo '${{ needs.load-env.outputs.SOLUTION_LIST }}' | jq -r '.[]'); do
             echo "Processing solution: $solution"
             pac solution export --name "$solution" --path "solutions/$solution.zip" --overwrite
             pac solution unpack --zip-file "solutions/$solution.zip" --folder "solutions/$solution" --allow-delete
           done
 
-      # ----------------- Commit and Push Changes -----------------
+      # ---------------- Commit & Push Changes ----------------
       - name: Commit and Push Changes
         run: |
           git config user.name "github-actions"
