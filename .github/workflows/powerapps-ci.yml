@@ -10,45 +10,73 @@ permissions:
   contents: write  # required for git push
 
 jobs:
-  ci:
+  load-env:
     runs-on: self-hosted
-
+    outputs:
+      SOLUTION_LIST: ${{ steps.set-outputs.outputs.SOLUTION_LIST }}
+      DEPENDENCY_ORDER: ${{ steps.set-outputs.outputs.DEPENDENCY_ORDER }}
+      POWER_PLATFORM_URL: ${{ steps.set-outputs.outputs.POWER_PLATFORM_URL }}
     steps:
-      - name: Checkout Repo
+      - name: Checkout
         uses: actions/checkout@v4
 
       - name: Load Env Vars (Dev)
-        id: load-env
+        id: set-outputs
         run: |
           set -a
           source env/dev.txt
           set +a
+          echo "SOLUTION_LIST=$SOLUTION_LIST" >> $GITHUB_OUTPUT
+          echo "DEPENDENCY_ORDER=$DEPENDENCY_ORDER" >> $GITHUB_OUTPUT
           echo "POWER_PLATFORM_URL=$POWER_PLATFORM_URL" >> $GITHUB_OUTPUT
 
-      # ---------------- CI Steps ----------------
-      - name: Export & Unpack Solutions
+  ci:
+    runs-on: self-hosted
+    needs: load-env
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # ----------------- Ensure .NET is available -----------------
+      - name: Check .NET Installation
         run: |
-          mkdir -p solutions
-          for solution in $(echo $SOLUTION_LIST | tr ',' ' '); do
+          if ! command -v dotnet &> /dev/null; then
+            echo ".NET not found. Please install .NET on this self-hosted runner."
+            exit 1
+          fi
+          dotnet --info
+
+      # ----------------- Install PAC CLI -----------------
+      - name: Install PAC CLI
+        uses: microsoft/powerplatform-actions/actions-install@v1
+
+      # ----------------- Create solutions folder -----------------
+      - name: Create solutions folder
+        run: mkdir -p solutions
+
+      # ----------------- Authenticate -----------------
+      - name: Authenticate to Power Platform
+        run: |
+          pac auth create \
+            --url "${{ needs.load-env.outputs.POWER_PLATFORM_URL }}" \
+            --tenant "${{ secrets.AZURE_TENANT_ID }}" \
+            --applicationId "${{ secrets.AZURE_CLIENT_ID }}" \
+            --clientSecret "${{ secrets.AZURE_CLIENT_SECRET }}"
+
+      # ----------------- Export and Unpack each solution -----------------
+      - name: Export and Unpack Solutions
+        run: |
+          for solution in $(echo "${{ needs.load-env.outputs.SOLUTION_LIST }}" | jq -r '.[]'); do
             echo "Processing solution: $solution"
-
-            # Export
-            pac auth create \
-              --url "$POWER_PLATFORM_URL" \
-              --tenant "$AZURE_TENANT_ID" \
-              --applicationId "$AZURE_CLIENT_ID" \
-              --clientSecret "$AZURE_CLIENT_SECRET"
-
             pac solution export --name "$solution" --path "solutions/$solution.zip" --overwrite
-
-            # Unpack
-            pac solution unpack --zipfile "solutions/$solution.zip" --folder "solutions/$solution" --allow-delete
+            pac solution unpack --zip-file "solutions/$solution.zip" --folder "solutions/$solution" --allow-delete
           done
 
-      - name: Commit & Push Changes
+      # ----------------- Commit and Push Changes -----------------
+      - name: Commit and Push Changes
         run: |
           git config user.name "github-actions"
           git config user.email "actions@github.com"
-          git add solutions/*
-          git commit -m "Updated Power Platform solutions" || echo "No changes"
+          git add solutions || echo "No changes to add"
+          git diff --cached --quiet || git commit -m "Updated Power Platform solutions"
           git push
