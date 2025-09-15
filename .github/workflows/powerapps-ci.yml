@@ -13,7 +13,7 @@ jobs:
   prepare:
     runs-on: self-hosted
     outputs:
-      pp_url: ${{ steps.set-vars.outputs.pp_url }}
+      pp_env: ${{ steps.set-vars.outputs.pp_env }}
       solutions: ${{ steps.set-vars.outputs.solutions }}
     steps:
       - name: Checkout repository
@@ -25,15 +25,15 @@ jobs:
           set -o allexport
           source env/dev.txt
           set +o allexport
-          echo "pp_url=$POWER_PLATFORM_URL" >> $GITHUB_OUTPUT
+          echo "pp_env=$POWER_PLATFORM_URL" >> $GITHUB_OUTPUT
           echo "solutions=$SOLUTION_LIST" >> $GITHUB_OUTPUT
 
   run-reusable:
     needs: prepare
     uses: Himaan1502/PowerApps-GitHubActions/.github/workflows/powerapps-reusable.yml@main
     with:
-      pp_url: ${{ needs.prepare.outputs.pp_url }}
+      pp_environment: ${{ needs.prepare.outputs.pp_env }}
       solutions: ${{ needs.prepare.outputs.solutions }}
-      azure_client_id: ${{ github.secrets.AZURE_CLIENT_ID }}
-      azure_client_secret: ${{ github.secrets.AZURE_CLIENT_SECRET }}
-      azure_tenant_id: ${{ github.secrets.AZURE_TENANT_ID }}
+      azure_client_id: ${{ secrets.AZURE_CLIENT_ID }}
+      azure_client_secret: ${{ secrets.AZURE_CLIENT_SECRET }}
+      azure_tenant_id: ${{ secrets.AZURE_TENANT_ID }}
