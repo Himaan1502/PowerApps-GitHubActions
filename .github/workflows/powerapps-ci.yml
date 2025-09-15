@@ -13,69 +13,65 @@ jobs:
   ci:
     runs-on: self-hosted
     steps:
+
       # Checkout repository
       - uses: actions/checkout@v4
 
-      # Install jq (used for looping JSON arrays)
+      # Install jq for JSON parsing
       - name: Install jq
         run: sudo apt-get update && sudo apt-get install -y jq
 
-      # Check and install .NET 8 runtime if missing
-      - name: Install .NET 8 Runtime if missing
+      # Ensure .NET 8 SDK is installed
+      - name: Install .NET 8 SDK if missing
         run: |
-          if ! dotnet --list-runtimes | grep -q 'Microsoft.NETCore.App 8.'; then
-            echo ".NET 8 runtime not found. Installing..."
+          if ! dotnet --list-sdks | grep -q '^8\.'; then
+            echo ".NET 8 SDK not found. Installing..."
             sudo apt-get update
-            sudo apt-get install -y dotnet-runtime-8.0
+            sudo apt-get install -y dotnet-sdk-8.0
           else
-            echo ".NET 8 runtime already installed."
+            echo ".NET 8 SDK already installed."
           fi
           dotnet --info
 
-      # Install PAC CLI via GitHub Action
+      # Install PAC CLI 1.43.6
       - name: Install PAC CLI
         uses: microsoft/powerplatform-actions/actions-install@v1
         with:
           pac-version-override: 1.43.6
           add-tools-to-path: true
 
-      # Verify PAC CLI
+      # Verify PAC CLI is installed
       - name: Verify PAC CLI
         run: pac --version
 
-      # Load environment variables from env/dev.txt
-      - name: Load Environment Variables
+      # Load solutions from file or define array
+      - name: Load Solutions
         run: |
-          set -a
-          source env/dev.txt
-          set +a
+          echo '["CoreSolution","DataverseSchemaSolution","FrontendAppSolution","AutomationSolution"]' > solutions.json
+          SOLUTIONS=$(cat solutions.json | jq -r '.[]')
+          echo "SOLUTIONS=$SOLUTIONS" >> $GITHUB_ENV
 
-      # Ensure solutions folder exists
-      - name: Prepare solutions folder
-        run: mkdir -p solutions
-
-      # Export & unpack each solution dynamically
+      # Export & Unpack Solutions dynamically
       - name: Export & Unpack Solutions
         run: |
-          SOLUTIONS='["CoreSolution","DataverseSchemaSolution","FrontendAppSolution","AutomationSolution"]'
-          for sol in $(echo $SOLUTIONS | jq -r '.[]'); do
-            echo "Processing $sol"
+          mkdir -p solutions
+          for sol in $SOLUTIONS; do
+            echo "Processing solution: $sol"
+
+            # Export solution
             pac solution export \
               --name "$sol" \
               --path "solutions/$sol.zip" \
-              --overwrite \
-              --environment-url "$POWER_PLATFORM_URL" \
-              --client-id "$AZURE_CLIENT_ID" \
-              --client-secret "$AZURE_CLIENT_SECRET" \
-              --tenant-id "$AZURE_TENANT_ID"
+              --overwrite
 
+            # Unpack solution
             pac solution unpack \
               --zip-file "solutions/$sol.zip" \
               --folder "solutions/$sol" \
               --allow-delete
           done
 
-      # Commit & push changes back to GitHub
+      # Commit & Push updated solutions
       - name: Commit & Push Changes
         run: |
           git config user.name "github-actions"
