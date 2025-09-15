@@ -28,7 +28,7 @@ jobs:
           echo "POWER_PLATFORM_URL=$POWER_PLATFORM_URL" >> $GITHUB_OUTPUT
 
   ci:
-    uses: ./.github/workflows/templates/powerapps-reusable.yml
+    uses: ./.github/workflows/powerapps-reusable.yml
     needs: load-env
     with:
       environment: dev
