@@ -6,18 +6,16 @@ on:
       pp_url:
         required: true
         type: string
-      azure_client_id:
-        required: true
-        type: string
-      azure_client_secret:
-        required: true
-        type: string
-      azure_tenant_id:
-        required: true
-        type: string
       solutions:
         required: true
         type: string  # JSON array, e.g. '["CoreSolution","FrontendSolution"]'
+    secrets:
+      AZURE_CLIENT_ID:
+        required: true
+      AZURE_CLIENT_SECRET:
+        required: true
+      AZURE_TENANT_ID:
+        required: true
 
 jobs:
   build:
@@ -36,7 +34,7 @@ jobs:
             chmod +x dotnet-install.sh
             ./dotnet-install.sh --version 8.0.19 --install-dir $HOME/.dotnet
             echo "DOTNET_ROOT=$HOME/.dotnet" >> $GITHUB_ENV
-            echo "PATH=$HOME/.dotnet:$PATH" >> $GITHUB_ENV
+            echo "$HOME/.dotnet" >> $GITHUB_PATH
           fi
 
       - name: Install PAC CLI
@@ -45,20 +43,20 @@ jobs:
           mkdir -p "$PAC_PATH"
           dotnet tool install Microsoft.PowerApps.CLI.Tool --version 1.43.6 --tool-path "$PAC_PATH"
           echo "PAC CLI installed at $PAC_PATH"
-          echo "PATH=$PAC_PATH:$PATH" >> $GITHUB_ENV
+          echo "$PAC_PATH" >> $GITHUB_PATH
 
       - name: Authenticate PAC CLI
         run: |
           pac auth create \
             --url "${{ inputs.pp_url }}" \
-            --tenant "${{ inputs.azure_tenant_id }}" \
-            --applicationId "${{ inputs.azure_client_id }}" \
-            --clientSecret "${{ inputs.azure_client_secret }}"
+            --tenant "${{ secrets.AZURE_TENANT_ID }}" \
+            --applicationId "${{ secrets.AZURE_CLIENT_ID }}" \
+            --clientSecret "${{ secrets.AZURE_CLIENT_SECRET }}"
 
       - name: Export & Unpack Solutions
         run: |
           mkdir -p solutions
-          SOLS=${{ inputs.solutions }}
+          SOLS='${{ inputs.solutions }}'
           for sol in $(echo $SOLS | jq -r '.[]'); do
             echo "Processing solution: $sol"
             pac solution export --name "$sol" --path "solutions/$sol.zip" --overwrite
