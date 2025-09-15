@@ -28,29 +28,28 @@ on:
 jobs:
   # ---------------- CI JOB ----------------
   ci:
-    if: ${{ inputs.mode == 'ci' }}
     runs-on: self-hosted
+    needs: load-env
     strategy:
       matrix:
-        solution: ${{ fromJSON(inputs.solutions) }}
+        solution: ${{ fromJSON(needs.load-env.outputs.SOLUTION_LIST) }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Authenticate to Power Platform
-        run: |
-          pac auth create \
-            --url "${{ secrets.POWER_PLATFORM_URL }}" \
-            --tenant "${{ secrets.AZURE_TENANT_ID }}" \
-            --applicationId "${{ secrets.AZURE_CLIENT_ID }}" \
-            --clientSecret "${{ secrets.AZURE_CLIENT_SECRET }}"
+        uses: microsoft/powerplatform-actions/authenticate@v1
+        with:
+          app-id: ${{ secrets.AZURE_CLIENT_ID }}
+          client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
 
       - name: Export Solution ${{ matrix.solution }}
         uses: microsoft/powerplatform-actions/export-solution@v1
         with:
           solution-name: ${{ matrix.solution }}
+          solution-version: latest
           solution-output-file: solutions/${{ matrix.solution }}.zip
-          include-version: true
 
       - name: Unpack Solution ${{ matrix.solution }}
         uses: microsoft/powerplatform-actions/unpack-solution@v1
@@ -59,13 +58,14 @@ jobs:
           solution-folder: solutions/${{ matrix.solution }}
           allow-delete: true
 
-      - name: Commit Solution Changes
+      - name: Commit and Push Changes
         run: |
           git config user.name "github-actions"
           git config user.email "actions@github.com"
-          git add solutions/${{ matrix.solution }}
-          git commit -m "Updated solution ${{ matrix.solution }}" || echo "No changes"
+          git add solutions/*
+          git commit -m "Updated Power Platform solutions" || echo "No changes"
           git push
+
 
   # ---------------- CD JOB ----------------
   cd:
