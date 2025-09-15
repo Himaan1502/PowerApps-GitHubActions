@@ -1,4 +1,3 @@
-# .github/workflows/powerapps-reusable.yml
 name: PowerApps Reusable Workflow
 
 on:
@@ -38,21 +37,26 @@ jobs:
             wget https://dotnet.microsoft.com/download/dotnet/scripts/v1/dotnet-install.sh -O dotnet-install.sh
             chmod +x dotnet-install.sh
             ./dotnet-install.sh --version 8.0.19 --install-dir $HOME/.dotnet
-            export PATH=$HOME/.dotnet:$PATH
           fi
+          export PATH=$HOME/.dotnet:$PATH
           dotnet --list-sdks
 
       - name: Install PAC CLI
         run: |
-          PAC_PATH=${{ inputs.pac_path:-$HOME/.pac}}
-          mkdir -p $PAC_PATH
-          dotnet tool install Microsoft.PowerApps.CLI.Tool --version 1.43.6 --tool-path $PAC_PATH
-          echo "PAC installed to $PAC_PATH"
+          # Use provided pac_path or default to $HOME/.pac
+          PAC_PATH="${{ inputs.pac_path }}"
+          if [ -z "$PAC_PATH" ]; then
+            PAC_PATH="$HOME/.pac"
+          fi
+          mkdir -p "$PAC_PATH"
+          dotnet tool install Microsoft.PowerApps.CLI.Tool --version 1.43.6 --tool-path "$PAC_PATH"
           echo "PAC_PATH=$PAC_PATH" >> $GITHUB_ENV
-          export PATH=$PAC_PATH:$PATH
+          export PATH="$PAC_PATH:$PATH"
 
       - name: Verify PAC CLI
-        run: $PAC_PATH/pac tool list
+        run: |
+          echo "PAC CLI path: $PAC_PATH"
+          $PAC_PATH/pac tool list
 
       - name: Export & Unpack Solutions
         run: |
