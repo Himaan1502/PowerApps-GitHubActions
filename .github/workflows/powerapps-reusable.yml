@@ -3,9 +3,9 @@ name: Power Platform Reusable Workflow
 on:
   workflow_call:
     inputs:
-      pp_url:
+      pp_environment:
         required: true
-        type: string
+        type: string  # Environment URL, ID, or unique name
       azure_client_id:
         required: true
         type: string
@@ -34,7 +34,7 @@ jobs:
             echo "Installing .NET 8 SDK..."
             wget https://dotnet.microsoft.com/download/dotnet/scripts/v1/dotnet-install.sh -O dotnet-install.sh
             chmod +x dotnet-install.sh
-            ./dotnet-install.sh --version 8.0.19 --install-dir $HOME/.dotnet
+            ./dotnet-install.sh --version 8.0.20 --install-dir $HOME/.dotnet
           else
             echo ".NET 8 SDK already installed."
           fi
@@ -59,7 +59,8 @@ jobs:
         run: |
           export PATH="$HOME/.pac:$PATH"
           pac auth create \
-            --url "${{ inputs.pp_url }}" \
+            --name "ci-auth" \
+            --environment "${{ inputs.pp_environment }}" \
             --tenant "${{ inputs.azure_tenant_id }}" \
             --applicationId "${{ inputs.azure_client_id }}" \
             --clientSecret "${{ inputs.azure_client_secret }}"
@@ -68,8 +69,8 @@ jobs:
         run: |
           export PATH="$HOME/.pac:$PATH"
           mkdir -p solutions
-          # Correctly parse SOLS JSON array
-          echo "${{ inputs.solutions }}" | jq -r '.[]' | while read sol; do
+          # Parse JSON array properly
+          echo '${{ inputs.solutions }}' | jq -r '.[]' | while read sol; do
             echo "Processing solution: $sol"
             pac solution export --name "$sol" --path "solutions/$sol.zip" --overwrite
             pac solution unpack --zip-file "solutions/$sol.zip" --folder "solutions/$sol" --allow-delete
