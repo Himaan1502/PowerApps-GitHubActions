@@ -1,42 +1,11 @@
-name: Power Apps CD
+name: PowerApps CD
 
 on:
   workflow_dispatch:
-    inputs:
-      environment:
-        description: "Target environment (uat/prod)"
-        required: true
-        type: choice
-        options:
-          - uat
-          - prod
 
 jobs:
   cd:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Load Env Vars
-        id: load-env
-        run: |
-          set -a
-          source env/${{ github.event.inputs.environment }}.txt
-          set +a
-          echo "SOLUTION_LIST=$SOLUTION_LIST" >> $GITHUB_ENV
-          echo "DEPENDENCY_ORDER=$DEPENDENCY_ORDER" >> $GITHUB_ENV
-          echo "POWER_PLATFORM_URL=$POWER_PLATFORM_URL" >> $GITHUB_ENV
-
-      - name: Call Reusable Workflow
-        uses: ./.github/workflows/templates/powerapps-reusable.yml
-        with:
-          environment: ${{ github.event.inputs.environment }}
-          mode: cd
-          solutions: ${{ env.SOLUTION_LIST }}
-          dependency_order: ${{ env.DEPENDENCY_ORDER }}
-        secrets:
-          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
-          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
-          POWER_PLATFORM_URL: ${{ env.POWER_PLATFORM_URL }}
+    uses: ./.github/workflows/powerapps-reusable.yml
+    with:
+      env_file: env/prod.txt
+      solutions: '["CoreSolution","DataverseSchemaSolution","FrontendAppSolution","AutomationSolution"]'
