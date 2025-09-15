@@ -7,7 +7,7 @@ on:
   workflow_dispatch: {}
 
 permissions:
-  contents: write  # required for git push
+  contents: write
 
 jobs:
   setup:
@@ -18,19 +18,14 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install jq (required to parse JSON)
+      - name: Install jq
         run: sudo apt-get update && sudo apt-get install -y jq
 
       - name: Install PAC CLI
         uses: microsoft/powerplatform-actions/actions-install@v1
         with:
-          pac-version: 1.43.6
-
-      - name: Add PAC CLI to PATH
-        run: |
-          echo "Adding PAC CLI to PATH"
-          echo "${{ env.POWERPLATFORMTOOLS_PACPATH }}"  # sanity check
-          echo "PATH=${{ env.POWERPLATFORMTOOLS_PACPATH }}:$PATH" >> $GITHUB_ENV
+          pac-version-override: 1.43.6
+          add-tools-to-path: true
 
       - name: Set solution list
         id: set-solutions
@@ -47,14 +42,11 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install PAC CLI (ensure available)
+      - name: Ensure PAC CLI available
         uses: microsoft/powerplatform-actions/actions-install@v1
         with:
-          pac-version: 1.43.6
-
-      - name: Add PAC CLI to PATH
-        run: |
-          echo "PATH=${{ env.POWERPLATFORMTOOLS_PACPATH }}:$PATH" >> $GITHUB_ENV
+          use-preinstalled-pac: true
+          add-tools-to-path: true
 
       - name: Authenticate with Power Platform
         run: |
