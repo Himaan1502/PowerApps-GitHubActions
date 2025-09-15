@@ -1,12 +1,9 @@
-name: PowerApps Reusable Workflow
+name: Power Platform Reusable Workflow
 
 on:
   workflow_call:
     inputs:
       pp_url:
-        required: true
-        type: string
-      solutions:
         required: true
         type: string
       azure_client_id:
@@ -18,80 +15,74 @@ on:
       azure_tenant_id:
         required: true
         type: string
+      solutions:
+        required: true
+        type: string  # JSON array, e.g. '["CoreSolution","FrontendSolution"]'
 
 jobs:
-  export-solutions:
+  build:
     runs-on: self-hosted
     steps:
-      - name: Checkout repo
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      # Ensure jq is installed
       - name: Install jq
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y jq
+        run: sudo apt-get update && sudo apt-get install -y jq
 
-      # Ensure .NET SDK 8 is installed
-      - name: Install .NET 8 SDK if missing
+      - name: Ensure .NET SDK 8 installed
         run: |
           if ! dotnet --list-sdks 2>/dev/null | grep -q '^8\.'; then
             echo "Installing .NET 8 SDK..."
             wget https://dotnet.microsoft.com/download/dotnet/scripts/v1/dotnet-install.sh -O dotnet-install.sh
             chmod +x dotnet-install.sh
             ./dotnet-install.sh --version 8.0.19 --install-dir $HOME/.dotnet
-            echo "DOTNET_ROOT=$HOME/.dotnet" >> $GITHUB_ENV
-            echo "$HOME/.dotnet:$HOME/.dotnet/tools" >> $GITHUB_PATH
           else
             echo ".NET 8 SDK already installed."
           fi
+          echo "DOTNET_ROOT=$HOME/.dotnet" >> $GITHUB_ENV
+          echo "$HOME/.dotnet:$HOME/.dotnet/tools" >> $GITHUB_PATH
 
-      # Install Microsoft Power Platform CLI
-      - name: Install Microsoft Power Platform CLI (PAC CLI)
+      - name: Install PAC CLI if missing
         run: |
           PAC_PATH="$HOME/.pac"
           mkdir -p "$PAC_PATH"
-          if [ ! -f "$PAC_PATH/pac" ]; then
+          if ! command -v pac >/dev/null 2>&1; then
             echo "Installing PAC CLI..."
             dotnet tool install Microsoft.PowerApps.CLI.Tool --version 1.43.6 --tool-path "$PAC_PATH"
           else
-            echo "PAC CLI already installed at $PAC_PATH"
+            echo "PAC CLI already installed at $(command -v pac)"
           fi
           echo "$PAC_PATH" >> $GITHUB_PATH
           export PATH="$PAC_PATH:$PATH"
-          which pac
-          pac --version
+          pac tool list
 
-      # Authenticate to Power Platform
-      - name: Power Platform Auth
+      - name: Authenticate PAC CLI
         run: |
           export PATH="$HOME/.pac:$PATH"
-          pac auth create --url "${{ inputs.pp_url }}" \
+          pac auth create \
+            --url "${{ inputs.pp_url }}" \
             --tenant "${{ inputs.azure_tenant_id }}" \
             --applicationId "${{ inputs.azure_client_id }}" \
             --clientSecret "${{ inputs.azure_client_secret }}"
 
-      # Export and unpack solutions
-      - name: Export and Unpack Solutions
+      - name: Export & Unpack Solutions
         run: |
           export PATH="$HOME/.pac:$PATH"
           mkdir -p solutions
-          SOLS='${{ inputs.solutions }}'   # must be valid JSON array: ["Sol1","Sol2"]
-          for sol in $(echo $SOLS | jq -r '.[]'); do
+          # Correctly parse SOLS JSON array
+          echo "${{ inputs.solutions }}" | jq -r '.[]' | while read sol; do
             echo "Processing solution: $sol"
             pac solution export --name "$sol" --path "solutions/$sol.zip" --overwrite
             pac solution unpack --zip-file "solutions/$sol.zip" --folder "solutions/$sol" --allow-delete
           done
 
-      # Commit only if there are changes
-      - name: Commit changes
+      - name: Commit & Push Changes if any
         run: |
           git config user.name "github-actions"
           git config user.email "actions@github.com"
-          git add solutions/*
-          if git diff --cached --quiet; then
-            echo "No changes to commit."
-          else
+          if [ -n "$(git status --porcelain solutions)" ]; then
+            git add solutions/*
             git commit -m "Updated Power Platform solutions"
             git push
+          else
+            echo "No changes detected in solutions folder. Skipping commit."
           fi
