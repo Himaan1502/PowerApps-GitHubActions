@@ -45,6 +45,6 @@ jobs:
     with:
       pp_url: ${{ needs.prepare.outputs.pp_url }}
       solutions: ${{ needs.prepare.outputs.solutions }}
-      azure_client_id: ${{ secrets.AZURE_CLIENT_ID }}
-      azure_client_secret: ${{ secrets.AZURE_CLIENT_SECRET }}
-      azure_tenant_id: ${{ secrets.AZURE_TENANT_ID }}
+      azure_client_id: ${{ github.secrets.AZURE_CLIENT_ID }}
+      azure_client_secret: ${{ github.secrets.AZURE_CLIENT_SECRET }}
+      azure_tenant_id: ${{ github.secrets.AZURE_TENANT_ID }}
