@@ -8,9 +8,7 @@ on:
         required: true
         default: 'uat'
         type: choice
-        options:
-          - uat
-          - prod
+        options: [uat, prod]
 
 permissions:
   contents: write
@@ -22,8 +20,7 @@ jobs:
       pp_url: ${{ steps.set-vars.outputs.pp_url }}
       solutions: ${{ steps.set-vars.outputs.solutions }}
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Load environment variables
         id: set-vars
@@ -43,8 +40,9 @@ jobs:
     needs: prepare
     uses: Himaan1502/PowerApps-GitHubActions/.github/workflows/powerapps-reusable.yml@main
     with:
-      pp_url: ${{ needs.prepare.outputs.pp_url }}
+      pp_environment: ${{ needs.prepare.outputs.pp_url }}
       solutions: ${{ needs.prepare.outputs.solutions }}
-      azure_client_id: ${{ github.secrets.AZURE_CLIENT_ID }}
-      azure_client_secret: ${{ github.secrets.AZURE_CLIENT_SECRET }}
-      azure_tenant_id: ${{ github.secrets.AZURE_TENANT_ID }}
+    secrets:
+      azure_client_id: ${{ secrets.AZURE_CLIENT_ID }}
+      azure_client_secret: ${{ secrets.AZURE_CLIENT_SECRET }}
+      azure_tenant_id: ${{ secrets.AZURE_TENANT_ID }}
