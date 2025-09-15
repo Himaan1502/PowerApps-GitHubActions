@@ -12,7 +12,7 @@ on:
       solutions:
         required: true
         type: string
-      dependency_order: # comma-separated list for deployment order
+      dependency_order: # JSON array (["A","B"]) or comma-separated list
         required: false
         type: string
     secrets:
@@ -25,6 +25,9 @@ on:
       POWER_PLATFORM_URL:
         required: true
 
+permissions:
+  contents: write
+
 jobs:
   # ---------------- CI JOB ----------------
   ci:
@@ -34,8 +37,11 @@ jobs:
       matrix:
         solution: ${{ fromJSON(inputs.solutions) }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+
+      # Optional if PAC not preinstalled on SHR
+      - name: Install Power Platform Tools
+        uses: microsoft/powerplatform-actions/actions-install@v1
 
       - name: Authenticate to Power Platform
         uses: microsoft/powerplatform-actions/authenticate@v1
@@ -49,7 +55,6 @@ jobs:
         uses: microsoft/powerplatform-actions/export-solution@v1
         with:
           solution-name: ${{ matrix.solution }}
-          solution-version: latest
           solution-output-file: solutions/${{ matrix.solution }}.zip
 
       - name: Unpack Solution ${{ matrix.solution }}
@@ -75,8 +80,7 @@ jobs:
       matrix:
         solution: ${{ fromJSON(inputs.dependency_order) }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Authenticate to Power Platform
         uses: microsoft/powerplatform-actions/authenticate@v1
