@@ -41,6 +41,14 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # ✅ Ensure .NET is available for PAC CLI
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            6.0.x
+
       # ✅ Install PAC CLI
       - name: Install Power Platform CLI (PAC)
         uses: microsoft/powerplatform-actions/actions-install@v1
