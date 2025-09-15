@@ -34,41 +34,44 @@ jobs:
     runs-on: ubuntu-latest
     needs: load-env
 
+    strategy:
+      matrix:
+        solution: ${{ fromJSON(needs.load-env.outputs.SOLUTION_LIST) }}
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # ✅ Install Microsoft Power Platform CLI
+      # ✅ Setup PAC CLI (official action)
       - name: Setup Power Platform CLI
         uses: microsoft/powerplatform-actions/setup-pac@v1
 
-      # ✅ Authenticate with Azure AD
-      - name: Authenticate with PAC
-        run: |
-          pac auth create \
-            --url "${{ needs.load-env.outputs.POWER_PLATFORM_URL }}" \
-            --tenant "${{ secrets.AZURE_TENANT_ID }}" \
-            --applicationId "${{ secrets.AZURE_CLIENT_ID }}" \
-            --clientSecret "${{ secrets.AZURE_CLIENT_SECRET }}"
+      # ✅ Authenticate (official action)
+      - name: Power Platform Auth
+        uses: microsoft/powerplatform-actions/authenticate@v1
+        with:
+          environment-url: ${{ needs.load-env.outputs.POWER_PLATFORM_URL }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
 
-      # ✅ Export and unpack each solution (in order)
-      - name: Export and Unpack Solutions
-        run: |
-          IFS=',' read -ra solutions <<< "${{ needs.load-env.outputs.SOLUTION_LIST }}"
-          for solution in "${solutions[@]}"; do
-            echo "Processing $solution ..."
-            mkdir -p "solutions/$solution"
-            pac solution export \
-              --name "$solution" \
-              --outputFile "solutions/$solution.zip" \
-              --includeVersion
-            pac solution unpack \
-              --solutionZip "solutions/$solution.zip" \
-              --folder "solutions/$solution" \
-              --allowDelete true
-          done
+      # ✅ Export Solution (official action)
+      - name: Export Solution ${{ matrix.solution }}
+        uses: microsoft/powerplatform-actions/export-solution@v1
+        with:
+          solution-name: ${{ matrix.solution }}
+          solution-output-file: solutions/${{ matrix.solution }}.zip
+          include-version: true
 
-      # ✅ Commit back any changes
+      # ✅ Unpack Solution (official action)
+      - name: Unpack Solution ${{ matrix.solution }}
+        uses: microsoft/powerplatform-actions/unpack-solution@v1
+        with:
+          solution-file: solutions/${{ matrix.solution }}.zip
+          solution-folder: solutions/${{ matrix.solution }}
+          allow-delete: true
+
+      # ✅ Commit and Push Changes
       - name: Commit and Push Changes
         run: |
           git config user.name "github-actions"
