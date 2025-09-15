@@ -29,7 +29,7 @@ jobs:
   # ---------------- CI JOB ----------------
   ci:
     if: ${{ inputs.mode == 'ci' }}
-    runs-on: [self-hosted, linux]
+    runs-on: self-hosted
     strategy:
       matrix:
         solution: ${{ fromJSON(inputs.solutions) }}
@@ -70,7 +70,7 @@ jobs:
   # ---------------- CD JOB ----------------
   cd:
     if: ${{ inputs.mode == 'cd' }}
-    runs-on: [self-hosted, linux]
+    runs-on: self-hosted
     strategy:
       matrix:
         solution: ${{ fromJSON(inputs.dependency_order) }}
