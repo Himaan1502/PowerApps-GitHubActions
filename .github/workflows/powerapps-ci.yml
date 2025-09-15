@@ -41,22 +41,25 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # ✅ Authenticate with PAC CLI already installed
-      - name: Power Platform Auth
-        run: |
-          pac auth create \
-            --url "${{ needs.load-env.outputs.POWER_PLATFORM_URL }}" \
-            --tenant "${{ secrets.AZURE_TENANT_ID }}" \
-            --applicationId "${{ secrets.AZURE_CLIENT_ID }}" \
-            --clientSecret "${{ secrets.AZURE_CLIENT_SECRET }}"
+      # ✅ Authenticate with Power Platform using GitHub Action
+      - name: Authenticate to Power Platform
+        uses: microsoft/powerplatform-actions/authenticate@v1
+        with:
+          app-id: ${{ secrets.AZURE_CLIENT_ID }}
+          client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          environment-url: ${{ needs.load-env.outputs.POWER_PLATFORM_URL }}
 
       # ✅ Export each solution
       - name: Export Solution ${{ matrix.solution }}
         uses: microsoft/powerplatform-actions/export-solution@v1
         with:
+          environment-url: ${{ needs.load-env.outputs.POWER_PLATFORM_URL }}
+          app-id: ${{ secrets.AZURE_CLIENT_ID }}
+          client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           solution-name: ${{ matrix.solution }}
           solution-output-file: solutions/${{ matrix.solution }}.zip
-          include-version: true
 
       # ✅ Unpack each solution
       - name: Unpack Solution ${{ matrix.solution }}
