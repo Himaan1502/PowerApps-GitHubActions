@@ -1,14 +1,15 @@
-name: PowerApps CI
+name: Power Apps CI
 
 on:
   push:
     branches:
       - main
-  workflow_dispatch:
+  workflow_dispatch: {}
 
 jobs:
   ci:
     uses: ./.github/workflows/powerapps-reusable.yml
     with:
-      env_file: env/dev.txt
+      pac_path: ${{ github.workspace }}/.pac
+      env_file: env/dev.txt                           # Dev environment variables
       solutions: '["CoreSolution","DataverseSchemaSolution","FrontendAppSolution","AutomationSolution"]'
