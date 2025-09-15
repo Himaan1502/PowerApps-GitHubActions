@@ -15,8 +15,7 @@ jobs:
     outputs:
       SOLUTIONS_JSON: ${{ steps.set-solutions.outputs.SOLUTIONS_JSON }}
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Install jq
         run: sudo apt-get update && sudo apt-get install -y jq
@@ -30,7 +29,6 @@ jobs:
       - name: Set solution list
         id: set-solutions
         run: |
-          mkdir -p solutions
           echo '["CoreSolution","DataverseSchemaSolution","FrontendAppSolution","AutomationSolution"]' > solutions.json
           SOLUTIONS_JSON=$(cat solutions.json)
           echo "SOLUTIONS_JSON=$SOLUTIONS_JSON" >> $GITHUB_OUTPUT
@@ -39,40 +37,27 @@ jobs:
     runs-on: self-hosted
     needs: setup
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Ensure PAC CLI available
-        uses: microsoft/powerplatform-actions/actions-install@v1
-        with:
-          use-preinstalled-pac: true
-          add-tools-to-path: true
-
-      - name: Authenticate with Power Platform
-        run: |
-          pac auth create \
-            --url "${{ secrets.POWER_PLATFORM_URL }}" \
-            --applicationId "${{ secrets.AZURE_CLIENT_ID }}" \
-            --clientSecret "${{ secrets.AZURE_CLIENT_SECRET }}" \
-            --tenant "${{ secrets.AZURE_TENANT_ID }}"
+      - uses: actions/checkout@v4
 
       - name: Export & Unpack Solutions
-        run: |
-          for solution in $(echo '${{ needs.setup.outputs.SOLUTIONS_JSON }}' | jq -r '.[]'); do
-            echo "Processing solution: $solution"
-            pac export-solution \
-              --environment-url "${{ secrets.POWER_PLATFORM_URL }}" \
-              --solution-name "$solution" \
-              --solution-output-file "solutions/$solution.zip" \
-              --overwrite \
-              --app-id "${{ secrets.AZURE_CLIENT_ID }}" \
-              --client-secret "${{ secrets.AZURE_CLIENT_SECRET }}" \
-              --tenant-id "${{ secrets.AZURE_TENANT_ID }}"
-            pac unpack-solution \
-              --zip-file "solutions/$solution.zip" \
-              --folder "solutions/$solution" \
-              --allow-delete
-          done
+        uses: microsoft/powerplatform-actions/export-solution@v1
+        with:
+          environment-url: ${{ secrets.POWER_PLATFORM_URL }}
+          app-id: ${{ secrets.AZURE_CLIENT_ID }}
+          client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          solution-name: CoreSolution
+          solution-output-file: solutions/CoreSolution.zip
+
+      - name: Unpack CoreSolution
+        uses: microsoft/powerplatform-actions/unpack-solution@v1
+        with:
+          solution-file: solutions/CoreSolution.zip
+          solution-folder: solutions/CoreSolution
+          allow-delete: true
+
+      # Repeat the export/unpack steps for other solutions
+      # Or you can loop dynamically in a bash step if needed
 
       - name: Commit & Push Changes
         run: |
