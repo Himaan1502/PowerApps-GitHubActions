@@ -10,10 +10,8 @@ permissions:
   contents: write
 
 jobs:
-  setup:
+  ci:
     runs-on: self-hosted
-    outputs:
-      SOLUTIONS_JSON: ${{ steps.set-solutions.outputs.SOLUTIONS_JSON }}
     steps:
       - uses: actions/checkout@v4
 
@@ -26,38 +24,23 @@ jobs:
           pac-version-override: 1.43.6
           add-tools-to-path: true
 
-      - name: Set solution list
-        id: set-solutions
-        run: |
-          echo '["CoreSolution","DataverseSchemaSolution","FrontendAppSolution","AutomationSolution"]' > solutions.json
-          SOLUTIONS_JSON=$(cat solutions.json)
-          echo "SOLUTIONS_JSON=$SOLUTIONS_JSON" >> $GITHUB_OUTPUT
+      # Ensure PAC CLI is on PATH
+      - name: Verify PAC CLI
+        run: pac --version
 
-  ci:
-    runs-on: self-hosted
-    needs: setup
-    steps:
-      - uses: actions/checkout@v4
-
+      # Loop through solutions dynamically
       - name: Export & Unpack Solutions
-        uses: microsoft/powerplatform-actions/export-solution@v1
-        with:
-          environment-url: ${{ secrets.POWER_PLATFORM_URL }}
-          app-id: ${{ secrets.AZURE_CLIENT_ID }}
-          client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          solution-name: CoreSolution
-          solution-output-file: solutions/CoreSolution.zip
+        run: |
+          mkdir -p solutions
+          SOLUTIONS='["CoreSolution","DataverseSchemaSolution","FrontendAppSolution","AutomationSolution"]'
+          for sol in $(echo $SOLUTIONS | jq -r '.[]'); do
+            echo "Processing $sol"
+            gh-action-run() { echo "Use export/unpack action if needed"; }
 
-      - name: Unpack CoreSolution
-        uses: microsoft/powerplatform-actions/unpack-solution@v1
-        with:
-          solution-file: solutions/CoreSolution.zip
-          solution-folder: solutions/CoreSolution
-          allow-delete: true
-
-      # Repeat the export/unpack steps for other solutions
-      # Or you can loop dynamically in a bash step if needed
+            # Using GitHub Actions directly is more reliable:
+            pac solution export --name "$sol" --path "solutions/$sol.zip" --overwrite
+            pac solution unpack --zip-file "solutions/$sol.zip" --folder "solutions/$sol" --allow-delete
+          done
 
       - name: Commit & Push Changes
         run: |
