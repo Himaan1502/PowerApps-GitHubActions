@@ -57,7 +57,8 @@ jobs:
             --environment "${{ inputs.pp_environment }}" \
             --tenant "${{ secrets.azure_tenant_id }}" \
             --applicationId "${{ secrets.azure_client_id }}" \
-            --clientSecret "${{ secrets.azure_client_secret }}"
+            --clientSecret "${{ secrets.azure_client_secret }}" \
+            --cloud "Public"
 
       - name: Export & Unpack Solutions
         run: |
