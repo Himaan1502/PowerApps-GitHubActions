@@ -9,17 +9,32 @@ permissions:
 jobs:
   prepare:
     runs-on: ubuntu-latest
+    environment: uat
     outputs:
       pp_environment: ${{ steps.set-vars.outputs.pp_environment }}
       solutions: ${{ steps.set-vars.outputs.solutions }}
+      azure_client_id: ${{ steps.set-vars.outputs.azure_client_id }}
+      azure_client_secret: ${{ steps.set-vars.outputs.azure_client_secret }}
+      azure_tenant_id: ${{ steps.set-vars.outputs.azure_tenant_id }}
     steps:
       - name: Set UAT environment variables
         id: set-vars
         run: |
-          echo "pp_environment=${{ secrets.POWER_PLATFORM_UAT_URL }}" >> $GITHUB_OUTPUT
-          echo "solutions=${{ secrets.SOLUTION_LIST_UAT }}" >> $GITHUB_OUTPUT
+          PP_URL="${{ secrets.POWER_PLATFORM_URL }}"
+          SOL_LIST='${{ secrets.SOLUTION_LIST }}'
           
-          echo "✓ Loaded UAT environment: ${{ secrets.POWER_PLATFORM_UAT_URL }}"
+          if [ -z "$PP_URL" ]; then
+            echo "POWER_PLATFORM_URL secret is not set in 'uat' environment!"
+            exit 1
+          fi
+          
+          echo "pp_environment=$PP_URL" >> $GITHUB_OUTPUT
+          echo "solutions=$SOL_LIST" >> $GITHUB_OUTPUT
+          echo "azure_client_id=${{ secrets.AZURE_CLIENT_ID }}" >> $GITHUB_OUTPUT
+          echo "azure_client_secret=${{ secrets.AZURE_CLIENT_SECRET }}" >> $GITHUB_OUTPUT
+          echo "azure_tenant_id=${{ secrets.AZURE_TENANT_ID }}" >> $GITHUB_OUTPUT
+          
+          echo "✓ Loaded UAT environment: $PP_URL"
 
   deploy:
     needs: prepare
@@ -28,6 +43,6 @@ jobs:
       pp_environment: ${{ needs.prepare.outputs.pp_environment }}
       solutions: ${{ needs.prepare.outputs.solutions }}
     secrets:
-      azure_client_id: ${{ secrets.AZURE_CLIENT_ID }}
-      azure_client_secret: ${{ secrets.AZURE_CLIENT_SECRET }}
-      azure_tenant_id: ${{ secrets.AZURE_TENANT_ID }}
+      azure_client_id: ${{ needs.prepare.outputs.azure_client_id }}
+      azure_client_secret: ${{ needs.prepare.outputs.azure_client_secret }}
+      azure_tenant_id: ${{ needs.prepare.outputs.azure_tenant_id }}
