@@ -15,7 +15,7 @@ permissions:
 
 jobs:
   prepare:
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     outputs:
       pp_url: ${{ steps.set-vars.outputs.pp_url }}
       solutions: ${{ steps.set-vars.outputs.solutions }}
