@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   prepare:
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     outputs:
       pp_env: ${{ steps.set-vars.outputs.pp_env }}
       solutions: ${{ steps.set-vars.outputs.solutions }}
