@@ -24,16 +24,22 @@ jobs:
       - name: Install jq
         run: sudo apt-get update && sudo apt-get install -y jq
       
-      - name: Setup .NET SDK
+      - name: Setup .NET SDK 8 and 9
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '8.0.x'
+          dotnet-version: |
+            8.0.x
+            9.0.x
       
-      - name: Verify .NET installation
+      - name: Configure .NET environment variables
+        shell: bash
         run: |
           dotnet --version
           dotnet --list-sdks
-          echo "DOTNET_ROOT=$(dirname $(dirname $(which dotnet)))" >> $GITHUB_ENV
+          
+          # Ensure DOTNET_ROOT is set (setup-dotnet should handle this, but let's be explicit)
+          echo "DOTNET_ROOT=$DOTNET_ROOT" >> $GITHUB_ENV
+          echo "✓ .NET SDKs installed and configured"
       
       - name: Install PAC CLI
         run: |
