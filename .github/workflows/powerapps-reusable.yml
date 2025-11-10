@@ -1,5 +1,4 @@
 name: Power Platform Reusable Workflow
-
 on:
   workflow_call:
     inputs:
@@ -16,39 +15,43 @@ on:
         required: true
       azure_tenant_id:
         required: true
-
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
+      
       - name: Install jq
         run: sudo apt-get update && sudo apt-get install -y jq
-
-      - name: Ensure .NET SDK 8 installed
+      
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      
+      - name: Verify .NET installation
         run: |
-          if ! dotnet --list-sdks 2>/dev/null | grep -q '^8\.'; then
-            echo "Installing .NET 8 SDK..."
-            wget https://dotnet.microsoft.com/download/dotnet/scripts/v1/dotnet-install.sh -O dotnet-install.sh
-            chmod +x dotnet-install.sh
-            ./dotnet-install.sh --version 8.0.20 --install-dir $HOME/.dotnet
-          fi
-          echo "DOTNET_ROOT=$HOME/.dotnet" >> $GITHUB_ENV
-          echo "$HOME/.dotnet:$HOME/.dotnet/tools" >> $GITHUB_PATH
-
-      - name: Install PAC CLI if missing
+          dotnet --version
+          dotnet --list-sdks
+          echo "DOTNET_ROOT=$(dirname $(dirname $(which dotnet)))" >> $GITHUB_ENV
+      
+      - name: Install PAC CLI
         run: |
           PAC_PATH="$HOME/.pac"
           mkdir -p "$PAC_PATH"
+          
           if ! command -v pac >/dev/null 2>&1; then
             echo "Installing PAC CLI..."
             dotnet tool install Microsoft.PowerApps.CLI.Tool --version 1.43.6 --tool-path "$PAC_PATH"
           fi
+          
           echo "$PAC_PATH" >> $GITHUB_PATH
-          export PATH="$PAC_PATH:$PATH"
-          pac tool list
-
+      
+      - name: Verify PAC CLI installation
+        run: |
+          export PATH="$HOME/.pac:$PATH"
+          pac --version
+      
       - name: Authenticate PAC CLI
         run: |
           export PATH="$HOME/.pac:$PATH"
@@ -59,25 +62,27 @@ jobs:
             --applicationId "${{ secrets.azure_client_id }}" \
             --clientSecret "${{ secrets.azure_client_secret }}" \
             --cloud "Public"
-
+      
       - name: Export & Unpack Solutions
         run: |
           export PATH="$HOME/.pac:$PATH"
           mkdir -p solutions
+          
           echo '${{ inputs.solutions }}' | jq -r '.[]' | while read sol; do
             echo "Processing solution: $sol"
             pac solution export --name "$sol" --path "solutions/$sol.zip" --overwrite
             pac solution unpack --zip-file "solutions/$sol.zip" --folder "solutions/$sol" --allow-delete
           done
-
+      
       - name: Commit & Push Changes if any
         run: |
           git config user.name "github-actions"
           git config user.email "actions@github.com"
+          
           if [ -n "$(git status --porcelain solutions)" ]; then
             git add solutions/*
             git commit -m "Updated Power Platform solutions"
             git push
           else
-            echo "No changes detected in solutions folder. Skipping commit."
+            echo "echo "No changes detected in solutions folder. Skipping commit."
           fi
