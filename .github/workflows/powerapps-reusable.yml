@@ -56,7 +56,7 @@ jobs:
       - name: Verify PAC CLI installation
         run: |
           export PATH="$HOME/.pac:$PATH"
-          pac --version
+          pac
       
       - name: Authenticate PAC CLI
         run: |
