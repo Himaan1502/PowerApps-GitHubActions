@@ -13,9 +13,6 @@ jobs:
     outputs:
       pp_environment: ${{ steps.set-vars.outputs.pp_environment }}
       solutions: ${{ steps.set-vars.outputs.solutions }}
-      azure_client_id: ${{ steps.set-vars.outputs.azure_client_id }}
-      azure_client_secret: ${{ steps.set-vars.outputs.azure_client_secret }}
-      azure_tenant_id: ${{ steps.set-vars.outputs.azure_tenant_id }}
     steps:
       - name: Set UAT environment variables
         id: set-vars
@@ -30,9 +27,6 @@ jobs:
           
           echo "pp_environment=$PP_URL" >> $GITHUB_OUTPUT
           echo "solutions=$SOL_LIST" >> $GITHUB_OUTPUT
-          echo "azure_client_id=${{ secrets.AZURE_CLIENT_ID }}" >> $GITHUB_OUTPUT
-          echo "azure_client_secret=${{ secrets.AZURE_CLIENT_SECRET }}" >> $GITHUB_OUTPUT
-          echo "azure_tenant_id=${{ secrets.AZURE_TENANT_ID }}" >> $GITHUB_OUTPUT
           
           echo "✓ Loaded UAT environment: $PP_URL"
 
@@ -43,6 +37,6 @@ jobs:
       pp_environment: ${{ needs.prepare.outputs.pp_environment }}
       solutions: ${{ needs.prepare.outputs.solutions }}
     secrets:
-      azure_client_id: ${{ needs.prepare.outputs.azure_client_id }}
-      azure_client_secret: ${{ needs.prepare.outputs.azure_client_secret }}
-      azure_tenant_id: ${{ needs.prepare.outputs.azure_tenant_id }}
+      azure_client_id: ${{ secrets.AZURE_CLIENT_ID }}
+      azure_client_secret: ${{ secrets.AZURE_CLIENT_SECRET }}
+      azure_tenant_id: ${{ secrets.AZURE_TENANT_ID }}
